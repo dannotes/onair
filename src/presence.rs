@@ -357,8 +357,42 @@ fn mac_raw_to_presence(raw: &str) -> Presence {
     }
 }
 
-// Windows / Linux fallback: lines like
-//   ... SetBadge Setting badge: GlyphBadge{"busy"}, ...
+// Windows / Linux: two signal sources, checked in order.
+//
+// 1. `TeamsCallTracker: Call became active: <uuid> (total: N)` and
+//    `TeamsCallTracker: Call ended: <uuid> (remaining: 0)` — direct
+//    call counter that fires for every call on every profile,
+//    regardless of whether that profile is foreground in the Teams
+//    UI. This is the primary signal for multi-account setups because
+//    `TaskbarBadgeServiceLegacy` only writes GlyphBadge events when
+//    the Windows taskbar badge visibly changes, and the taskbar badge
+//    only reflects ONE profile at a time — so calls in background
+//    profiles never get a GlyphBadge event.
+//
+// 2. `TaskbarBadgeServiceLegacy: ... GlyphBadge{"..."}` — the
+//    availability-state marker. Still needed because it catches
+//    MANUAL Busy / DoNotDisturb transitions (a deliberate feature:
+//    users can manually set Busy to trigger the bulb outside of a
+//    call). It also covers Available / Away / BeRightBack / Offline
+//    which TeamsCallTracker doesn't know about.
+#[cfg(any(
+    target_os = "windows",
+    all(not(target_os = "macos"), not(target_os = "windows"))
+))]
+static WIN_CALL_ACTIVE_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"TeamsCallTracker: Call became active:")
+        .expect("windows call-active regex compiles")
+});
+
+#[cfg(any(
+    target_os = "windows",
+    all(not(target_os = "macos"), not(target_os = "windows"))
+))]
+static WIN_CALL_ENDED_RE: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"TeamsCallTracker: Call ended:.*\(remaining:\s*0\s*\)")
+        .expect("windows call-ended regex compiles")
+});
+
 #[cfg(any(
     target_os = "windows",
     all(not(target_os = "macos"), not(target_os = "windows"))
@@ -371,6 +405,21 @@ static WIN_RE: Lazy<Regex> =
     all(not(target_os = "macos"), not(target_os = "windows"))
 ))]
 fn parse_line_windows(line: &str) -> Option<PresenceEvent> {
+    // Primary: TeamsCallTracker (fires for all profiles, foreground or not).
+    if WIN_CALL_ACTIVE_RE.is_match(line) {
+        return Some(PresenceEvent {
+            presence: Presence::Busy,
+            raw: "call-active".to_string(),
+        });
+    }
+    if WIN_CALL_ENDED_RE.is_match(line) {
+        return Some(PresenceEvent {
+            presence: Presence::Available,
+            raw: "call-ended".to_string(),
+        });
+    }
+    // Secondary: GlyphBadge (foreground profile only, but catches
+    // manual Busy/DoNotDisturb and the other availability states).
     let caps = WIN_RE.captures(line)?;
     let raw = caps.get(1)?.as_str().to_string();
     let presence = win_raw_to_presence(&raw);
@@ -445,5 +494,64 @@ mod tests {
         let ev = parse_line(line).expect("should match");
         assert_eq!(ev.presence, Presence::Busy);
         assert_eq!(ev.raw, "busy");
+    }
+
+    #[cfg(any(
+        target_os = "windows",
+        all(not(target_os = "macos"), not(target_os = "windows"))
+    ))]
+    #[test]
+    fn parses_windows_call_tracker_active() {
+        // Fires even when the call is on a background profile that never
+        // updates the taskbar badge — this is the multi-profile fix.
+        let line = "2026-04-14T14:12:06.817968+05:30 0x00002134 <INFO> TeamsCallTracker: Call became active: fcd632d4-112d-4e9c-9b2f-3f9467b19641 (total: 1)";
+        let ev = parse_line(line).expect("should match");
+        assert_eq!(ev.presence, Presence::Busy);
+        assert_eq!(ev.raw, "call-active");
+    }
+
+    #[cfg(any(
+        target_os = "windows",
+        all(not(target_os = "macos"), not(target_os = "windows"))
+    ))]
+    #[test]
+    fn parses_windows_call_tracker_ended_zero_remaining() {
+        let line = "2026-04-14T14:12:26.604803+05:30 0x00002134 <INFO> TeamsCallTracker: Call ended: fcd632d4-112d-4e9c-9b2f-3f9467b19641 (remaining: 0)";
+        let ev = parse_line(line).expect("should match");
+        assert_eq!(ev.presence, Presence::Available);
+        assert_eq!(ev.raw, "call-ended");
+    }
+
+    #[cfg(any(
+        target_os = "windows",
+        all(not(target_os = "macos"), not(target_os = "windows"))
+    ))]
+    #[test]
+    fn ignores_call_ended_when_other_calls_still_active() {
+        // User is in two concurrent calls and ends one — we should stay
+        // Busy, not flicker to Available. The regex requires `remaining: 0`
+        // so this line must NOT match.
+        let line = "2026-04-14T14:12:26.604803+05:30 0x00002134 <INFO> TeamsCallTracker: Call ended: fcd632d4-... (remaining: 1)";
+        assert!(parse_line(line).is_none());
+    }
+
+    // Always-run syntax check for the Windows TeamsCallTracker regexes,
+    // duplicated outside the cfg gate so that CI on any platform — and
+    // local Mac `cargo test` — catches a typo before it ships.
+    #[test]
+    fn windows_call_tracker_regexes_compile_and_match() {
+        let active = Regex::new(r"TeamsCallTracker: Call became active:")
+            .expect("active regex must compile");
+        let ended = Regex::new(r"TeamsCallTracker: Call ended:.*\(remaining:\s*0\s*\)")
+            .expect("ended regex must compile");
+
+        let call_active = "2026-04-14T14:12:06.817968+05:30 0x00002134 <INFO> TeamsCallTracker: Call became active: fcd632d4-112d-4e9c-9b2f-3f9467b19641 (total: 1)";
+        let call_ended_zero = "2026-04-14T14:12:26.604803+05:30 0x00002134 <INFO> TeamsCallTracker: Call ended: fcd632d4-... (remaining: 0)";
+        let call_ended_one = "2026-04-14T14:12:26.604803+05:30 0x00002134 <INFO> TeamsCallTracker: Call ended: fcd632d4-... (remaining: 1)";
+
+        assert!(active.is_match(call_active));
+        assert!(!active.is_match(call_ended_zero));
+        assert!(ended.is_match(call_ended_zero));
+        assert!(!ended.is_match(call_ended_one));
     }
 }

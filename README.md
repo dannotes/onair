@@ -67,9 +67,10 @@ The release binary is around 5–8 MB depending on platform.
 ## Quick start
 
 1. Run the binary — `onair` (or `onair.exe` on Windows).
-2. Open `http://localhost:9876` in your browser.
-3. If your WiZ bulb is on the same LAN and powered on, it gets auto-selected on first run. Otherwise expand **Settings → Bulb Selection → Scan Network** and click your bulb.
-4. Done. The bulb will turn red the next time Teams shows you as Busy or Do Not Disturb.
+2. The dashboard opens in your default browser automatically (the first time only). If for some reason it doesn't, visit `http://localhost:9876`.
+3. If your WiZ bulb is on the same LAN and powered on, it gets auto-selected. Otherwise expand **Settings → Bulb Selection → Scan Network** and click your bulb.
+4. The bulb will turn red the next time Teams shows you as Busy or Do Not Disturb.
+5. **Optional — make it run forever:** expand **Settings → Advanced** and flip the **Run on Login** toggle. Onair will then start automatically on every login (you can close the terminal, reboot, and it just keeps working). Toggle off any time to disable.
 
 That's it. The defaults are sensible and there's nothing else to configure unless you want to.
 
@@ -87,7 +88,7 @@ The grant is per-binary, so if you uninstall onair and reinstall it, you'll get 
 
 ### Run on Login
 
-Open the dashboard, expand **Settings → Advanced**, and flip the **Run on Login** toggle. That's it — onair gets installed as a launchd LaunchAgent (macOS), systemd user unit (Linux), or Startup folder shortcut (Windows). Toggle off to remove. No manual file editing required.
+Open the dashboard, expand **Settings → Advanced**, and flip the **Run on Login** toggle. Onair gets installed as the OS-native autostart entry — a launchd LaunchAgent on macOS, a systemd user unit on Linux, or a Startup-folder shortcut on Windows. Toggle off any time to remove it cleanly. **No manual file editing required, ever**, and **disabled by default** so installing onair never modifies your login items without your explicit consent.
 
 ---
 

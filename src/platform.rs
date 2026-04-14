@@ -54,3 +54,33 @@ pub fn default_data_dir() -> PathBuf {
 pub fn default_db_path() -> PathBuf {
     default_data_dir().join("onair.db")
 }
+
+/// Open `url` in the user's default browser. Best-effort cross-platform.
+/// Used by main.rs on first run to drop the user straight into the dashboard
+/// after `onair` is invoked from a terminal.
+pub fn open_url(url: &str) -> std::io::Result<()> {
+    use std::process::Command;
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open").arg(url).spawn()?;
+        return Ok(());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open").arg(url).spawn()?;
+        return Ok(());
+    }
+    #[cfg(target_os = "windows")]
+    {
+        // `cmd /c start "" <url>` is the canonical way to open a URL in the
+        // default browser. The empty "" is the window-title argument that
+        // `start` requires when the URL might contain spaces.
+        Command::new("cmd").args(["/c", "start", "", url]).spawn()?;
+        return Ok(());
+    }
+    #[allow(unreachable_code)]
+    Err(std::io::Error::new(
+        std::io::ErrorKind::Unsupported,
+        "open_url not supported on this os",
+    ))
+}

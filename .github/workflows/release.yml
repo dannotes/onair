@@ -163,11 +163,16 @@ jobs:
 
             def caveats
               <<~CAVEAT
-                Onair runs as a foreground daemon and serves a dashboard at:
-                    http://localhost:9876
+                Run onair to launch the dashboard:
+                    onair
 
-                To run it on login, see the autostart templates at:
-                    https://github.com/dannotes/onair/tree/main/dist/autostart
+                The dashboard at http://localhost:9876 will open in your browser
+                automatically the first time. Configure your bulb there, then
+                toggle "Run on Login" in Settings → Advanced if you want it to
+                start on every login.
+
+                Config and call history live at:
+                    ~/Library/Application Support/Onair/onair.db
               CAVEAT
             end
 
@@ -233,8 +238,8 @@ jobs:
             },
             "bin": "onair.exe",
             "notes": [
-              "onair runs as a foreground daemon and serves a dashboard at http://localhost:9876",
-              "To run it on login, see https://github.com/dannotes/onair/tree/main/dist/autostart"
+              "Run 'onair' to launch the dashboard. It will open in your browser automatically the first time.",
+              "Configure your bulb there, then toggle 'Run on Login' in Settings -> Advanced if you want it to start on every login."
             ],
             "checkver": {
               "github": "https://github.com/dannotes/onair"

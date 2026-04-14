@@ -6,6 +6,7 @@ use onair::state::{
     bulb_poll_loop, force_off, monitor_loop, resolve_bulb, AppState, Config, EventLevel,
 };
 use onair::{bulb, platform};
+use std::io::IsTerminal;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing_subscriber::{fmt, EnvFilter};
@@ -130,37 +131,31 @@ async fn main() -> Result<()> {
     // Resolve the configured bulb (no-op if still empty).
     resolve_bulb(state.clone()).await;
 
-    // ----- First-run convenience: auto-enable autostart -----
-    // The first time we have a working bulb, install the OS-native autostart
-    // entry so onair starts on next login without any extra setup. Opt-out:
-    // the user can flip the toggle off in Settings → Advanced.
-    let bulb_resolved = state.bulb_ip.read().is_some();
+    // ----- First-run convenience: auto-open dashboard in the user's browser -----
+    // Only when invoked from an interactive terminal (so it never fires under
+    // launchd / systemd / Windows Startup-folder shortcut, where there's no TTY
+    // and possibly no logged-in browser session). Once-only — gated on
+    // `first_run_completed` so subsequent manual `onair` runs don't re-open.
+    let interactive = std::io::stdout().is_terminal();
     let first_run_pending = !state.config.read().first_run_completed;
-    if first_run_pending && bulb_resolved {
-        if onair::autostart::is_installed() {
-            state.log_event(
+    if first_run_pending && interactive {
+        let port = state.config.read().ui_port;
+        let url = format!("http://127.0.0.1:{port}");
+        let s2 = state.clone();
+        tokio::spawn(async move {
+            // Brief delay so the web server is bound and listening before the
+            // browser tries to connect.
+            tokio::time::sleep(Duration::from_millis(500)).await;
+            s2.log_event(
                 EventLevel::Inf,
-                "first-run: autostart already configured — leaving as-is",
+                format!("opening dashboard in your browser: {url}"),
             );
-        } else {
-            match onair::autostart::install() {
-                Ok(()) => state.log_event(
-                    EventLevel::Ok,
-                    "first-run: autostart enabled — onair will start on every login \
-                     (disable in Settings → Advanced)",
-                ),
-                Err(e) => state.log_event(
-                    EventLevel::Wrn,
-                    format!(
-                        "first-run: could not enable autostart: {} \
-                         (you can enable it manually in Settings → Advanced)",
-                        e
-                    ),
-                ),
+            if let Err(e) = platform::open_url(&url) {
+                tracing::warn!("could not open browser: {} (visit {} manually)", e, &url);
             }
-        }
-        state.config.write().first_run_completed = true;
-        state.persist_config();
+            s2.config.write().first_run_completed = true;
+            s2.persist_config();
+        });
     }
 
     // ----- Background tasks -----

@@ -216,6 +216,10 @@ fn config_to_pairs(cfg: &Config) -> Vec<(&'static str, String)> {
         ("idle_brightness", cfg.idle_brightness.to_string()),
         ("ui_port", cfg.ui_port.to_string()),
         ("log_level", cfg.log_level.clone()),
+        (
+            "first_run_completed",
+            if cfg.first_run_completed { "1" } else { "0" }.to_string(),
+        ),
     ]
 }
 
@@ -293,6 +297,7 @@ fn apply_key(cfg: &mut Config, key: &str, value: &str) {
             }
         }
         "log_level" => cfg.log_level = value.to_string(),
+        "first_run_completed" => cfg.first_run_completed = matches!(value, "1" | "true"),
         _ => {} // unknown key — ignore gracefully so old DBs stay forward-compatible
     }
 }

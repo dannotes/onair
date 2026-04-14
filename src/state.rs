@@ -72,6 +72,9 @@ pub struct Config {
     pub idle_brightness: u8,
     pub ui_port: u16,
     pub log_level: String,
+    /// Set to `true` after the first successful bulb resolve. Used to drive
+    /// the opt-out "auto-enable autostart on first run" behavior in `main.rs`.
+    pub first_run_completed: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -102,6 +105,7 @@ impl Config {
             idle_brightness: 50,
             ui_port: 9876,
             log_level: "info".to_string(),
+            first_run_completed: false,
         }
     }
 }

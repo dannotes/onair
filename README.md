@@ -73,6 +73,22 @@ The release binary is around 5–8 MB depending on platform.
 
 That's it. The defaults are sensible and there's nothing else to configure unless you want to.
 
+### First-run permission prompts
+
+The first time onair runs, your OS may pop one or two privacy prompts. **Click Allow on both** — they're expected and onair only needs them for what it says on the tin:
+
+- **macOS Sequoia (15.x):** *"onair would like to access data from other apps"*
+  Triggered because the Teams log lives in Microsoft's Group Container directory under `~/Library/`. Onair only reads the file; it never writes to Teams' container.
+- **macOS Sonoma+ (14.4+):** *"onair would like to find and connect to devices on your local network"*
+  Triggered when onair sends UDP discovery / `getPilot` to the bulb on your LAN. Required for any LAN bulb control. If you miss this prompt, broadcast and unicast UDP get silently dropped — symptom is "0 bulbs found" while the bulb is clearly online (you can `ping` it but onair can't reach it). Re-run `onair`, watch for the prompt, click Allow. Or open *System Settings → Privacy & Security → Local Network* and toggle onair on manually.
+- **Windows / Linux:** no first-run prompts. Just runs.
+
+The grant is per-binary, so if you uninstall onair and reinstall it, you'll get the prompts again.
+
+### Run on Login
+
+Open the dashboard, expand **Settings → Advanced**, and flip the **Run on Login** toggle. That's it — onair gets installed as a launchd LaunchAgent (macOS), systemd user unit (Linux), or Startup folder shortcut (Windows). Toggle off to remove. No manual file editing required.
+
 ---
 
 ## How it works

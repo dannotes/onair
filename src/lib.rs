@@ -1,3 +1,4 @@
+pub mod autostart;
 pub mod bulb;
 pub mod config;
 pub mod models;

@@ -17,6 +17,7 @@
 //! Critical invariant: never hold a `parking_lot` guard across an `.await`.
 //! Read into a local first, drop the guard, then await.
 
+use crate::autostart;
 use crate::bulb::{self, BulbState, DiscoveredBulb};
 use crate::models::Rgb;
 use crate::platform;
@@ -59,6 +60,7 @@ pub async fn serve(state: Arc<AppState>) -> anyhow::Result<()> {
         .route("/api/bulb/test", post(post_bulb_test))
         .route("/api/teams/verify", post(post_teams_verify))
         .route("/api/calls", get(get_calls))
+        .route("/api/autostart", get(get_autostart).post(post_autostart))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
@@ -670,6 +672,51 @@ async fn post_teams_verify(
         "error": result.error,
     }))
     .into_response()
+}
+
+// ============================================================================
+// /api/autostart
+// ============================================================================
+
+async fn get_autostart(State(_state): State<Arc<AppState>>) -> Json<serde_json::Value> {
+    Json(serde_json::json!({
+        "installed": autostart::is_installed(),
+        "supported": cfg!(any(target_os = "macos", target_os = "linux", target_os = "windows")),
+        "platform": std::env::consts::OS,
+        "location": autostart::install_location().map(|p| p.display().to_string()),
+    }))
+}
+
+#[derive(Deserialize)]
+struct AutostartBody {
+    enable: bool,
+}
+
+async fn post_autostart(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<AutostartBody>,
+) -> Response {
+    let result = if body.enable {
+        autostart::install()
+    } else {
+        autostart::uninstall()
+    };
+
+    match result {
+        Ok(()) => {
+            let verb = if body.enable { "enabled" } else { "disabled" };
+            state.log_event(EventLevel::Ok, format!("autostart {}", verb));
+            Json(serde_json::json!({
+                "ok": true,
+                "installed": autostart::is_installed(),
+            }))
+            .into_response()
+        }
+        Err(e) => {
+            state.log_event(EventLevel::Err, format!("autostart change failed: {}", e));
+            err_json(StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+        }
+    }
 }
 
 // ============================================================================

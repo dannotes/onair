@@ -759,6 +759,78 @@
   }
   .save-bar .hint { font-size: 0.62rem; color: var(--text-4); }
 
+  /* ---------- AUTOSTART TOGGLE ---------- */
+  .autostart-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.85rem 1rem;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-top: 0.85rem;
+  }
+  .autostart-label {
+    font-size: 0.7rem;
+    color: var(--text-2);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    font-weight: 500;
+    margin-bottom: 0.2rem;
+  }
+  .autostart-hint {
+    font-size: 0.6rem;
+    color: var(--text-4);
+    line-height: 1.5;
+  }
+  .autostart-hint.warn { color: var(--amber); }
+  .autostart-hint code {
+    background: var(--surface-2);
+    padding: 0.05rem 0.3rem;
+    border-radius: 2px;
+    color: var(--text-2);
+  }
+
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 38px;
+    height: 22px;
+    flex-shrink: 0;
+  }
+  .switch input { opacity: 0; width: 0; height: 0; }
+  .switch .slider {
+    position: absolute;
+    cursor: pointer;
+    inset: 0;
+    background: var(--surface-3);
+    border: 1px solid var(--border-2);
+    border-radius: 22px;
+    transition: 0.25s;
+  }
+  .switch .slider::before {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    left: 2px;
+    bottom: 2px;
+    background: var(--text-3);
+    border-radius: 50%;
+    transition: 0.25s;
+  }
+  .switch input:checked + .slider {
+    background: var(--green-dim);
+    border-color: var(--green);
+  }
+  .switch input:checked + .slider::before {
+    transform: translateX(16px);
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+  }
+  .switch input:disabled + .slider { opacity: 0.4; cursor: not-allowed; }
+
   /* ---------- TOAST ---------- */
   .toast-host {
     position: fixed;
@@ -1046,6 +1118,18 @@
               <option value="error">error</option>
             </select>
           </div>
+        </div>
+
+        <!-- run on login toggle -->
+        <div class="autostart-row">
+          <div class="autostart-info">
+            <div class="autostart-label">Run on Login</div>
+            <div class="autostart-hint" id="autostart-hint">launch onair automatically when you log in</div>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="autostart-toggle">
+            <span class="slider"></span>
+          </label>
         </div>
       </div>
 
@@ -1430,6 +1514,22 @@ function wireUp() {
     } catch (e) { toast('scan failed', 'error'); }
   });
 
+  // autostart toggle
+  $('autostart-toggle').addEventListener('change', async () => {
+    const enable = $('autostart-toggle').checked;
+    $('autostart-toggle').disabled = true;
+    try {
+      await api.post('/api/autostart', { enable });
+      toast(enable ? 'autostart enabled' : 'autostart disabled', 'success');
+      loadAutostart();
+    } catch (e) {
+      toast('autostart change failed: ' + e.message, 'error');
+      $('autostart-toggle').checked = !enable;
+    } finally {
+      $('autostart-toggle').disabled = false;
+    }
+  });
+
   // verify button
   $('btn-verify').addEventListener('click', async () => {
     const path = $('cfg-teams-path').value.trim();
@@ -1522,11 +1622,44 @@ async function loadConfig() {
   }
 }
 
+async function loadAutostart() {
+  try {
+    const a = await api.get('/api/autostart');
+    const toggle = $('autostart-toggle');
+    const hint = $('autostart-hint');
+    toggle.checked = !!a.installed;
+    toggle.disabled = !a.supported;
+
+    if (!a.supported) {
+      hint.className = 'autostart-hint warn';
+      hint.textContent = `not supported on ${a.platform}`;
+      return;
+    }
+
+    if (a.installed) {
+      hint.className = 'autostart-hint';
+      const platformNote =
+        a.platform === 'macos' ? 'launchd agent active. Logs at /tmp/onair.log.' :
+        a.platform === 'linux' ? 'systemd user unit active. <code>journalctl --user -u onair</code>' :
+        a.platform === 'windows' ? 'shortcut in Startup folder.' :
+        'enabled.';
+      hint.innerHTML = `enabled · ${platformNote}` +
+        (a.location ? `<br><code>${a.location}</code>` : '');
+    } else {
+      hint.className = 'autostart-hint';
+      hint.innerHTML = 'launch onair automatically when you log in';
+    }
+  } catch (e) {
+    // silent — endpoint may not exist on older builds
+  }
+}
+
 // ---------- BOOT ----------
 $('footer-link').textContent = `localhost:${location.port || '9876'}`;
 $('footer-link').href = location.origin;
 wireUp();
 loadConfig();
+loadAutostart();
 refresh();
 setInterval(refresh, 3000);
 </script>

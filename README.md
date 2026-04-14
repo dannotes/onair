@@ -225,7 +225,6 @@ The whole project compiles to a single binary with zero runtime dependencies.
 
 ## Credits
 
-- The dashboard's minimal-industrial aesthetic was inspired by [**Oat UI**](https://oat.ink) by [Kailash Nadh](https://github.com/knadh). The CSS in this repo is hand-written but the design DNA is his — distinctive monospace typography, generous whitespace, dark surfaces with sharp accents.
 - Fonts: [DM Sans](https://fonts.google.com/specimen/DM+Sans) (headings) and [JetBrains Mono](https://fonts.google.com/specimen/JetBrains+Mono) (everything else), via Google Fonts.
 - The WiZ UDP protocol has been documented by various community efforts; this implementation works against off-the-shelf WiZ bulbs with no firmware modification.
 

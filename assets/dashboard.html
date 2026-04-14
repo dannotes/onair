@@ -735,6 +735,35 @@
     padding: 1rem;
   }
 
+  /* bulb selection — manual IP (primary) + LAN scan (secondary) */
+  .bulb-current-row { margin-bottom: 0.75rem; }
+  .manual-bulb {
+    padding-top: 0.2rem;
+  }
+  .manual-bulb.primary {
+    padding: 0.75rem;
+    background: var(--surface-2);
+    border: 1px solid var(--border-2);
+    border-radius: var(--radius-sm);
+  }
+  .scan-section {
+    margin-top: 1rem;
+    padding-top: 0.9rem;
+    border-top: 1px dashed var(--border);
+  }
+  .manual-bulb-label {
+    font-size: 0.72rem;
+    color: var(--text-2);
+    font-weight: 500;
+    margin-bottom: 0.3rem;
+  }
+  .manual-bulb-hint {
+    font-size: 0.65rem;
+    color: var(--text-4);
+    line-height: 1.55;
+    margin-bottom: 0.3rem;
+  }
+
   .verify-result {
     margin-top: 0.5rem;
     padding: 0.6rem 0.75rem;
@@ -1072,19 +1101,46 @@
       <!-- BULB SELECTION -->
       <div class="settings-section">
         <h4>Bulb Selection</h4>
-        <div style="display:flex;gap:0.5rem;align-items:center;">
-          <button class="btn tiny" id="btn-scan">Scan Network</button>
+        <div class="bulb-current-row">
           <span class="hint" id="bulb-current">no bulb selected</span>
         </div>
-        <div class="bulb-table-wrap">
-          <table class="bulb-table">
-            <thead>
-              <tr><th>Sel</th><th>MAC</th><th>IP</th><th>Module</th></tr>
-            </thead>
-            <tbody id="bulb-tbody">
-              <tr class="empty-row"><td colspan="4">click "Scan Network" to discover bulbs on your LAN</td></tr>
-            </tbody>
-          </table>
+
+        <!-- PRIMARY: manual IP entry. Always works, even for bulbs already
+             paired with the Philips WiZ app / Alexa / Google Home. -->
+        <div class="manual-bulb primary">
+          <div class="manual-bulb-label">Enter your bulb's IP address</div>
+          <div class="manual-bulb-hint">
+            This always works. Find the IP in your router's admin page or in
+            the Philips WiZ app under device details.
+          </div>
+          <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.4rem;">
+            <input type="text" id="manual-ip" placeholder="192.168.1.23" style="flex:1">
+            <button class="btn tiny primary" id="btn-manual-ip">Find &amp; Select</button>
+          </div>
+          <div class="verify-result" id="manual-ip-result" style="display:none;margin-top:0.4rem;"></div>
+        </div>
+
+        <!-- SECONDARY: LAN broadcast scan. Works for brand-new unclaimed
+             bulbs or multi-bulb households, unreliable otherwise. -->
+        <div class="scan-section">
+          <div class="manual-bulb-label">Or scan the network</div>
+          <div class="manual-bulb-hint">
+            Works for brand-new bulbs that haven't been paired with another
+            app yet, or if you have several bulbs and want to pick one.
+          </div>
+          <div style="display:flex;gap:0.5rem;align-items:center;margin-top:0.4rem;">
+            <button class="btn tiny" id="btn-scan">Scan Network</button>
+          </div>
+          <div class="bulb-table-wrap">
+            <table class="bulb-table">
+              <thead>
+                <tr><th>Sel</th><th>MAC</th><th>IP</th><th>Module</th></tr>
+              </thead>
+              <tbody id="bulb-tbody">
+                <tr class="empty-row"><td colspan="4">click "Scan Network" to list bulbs responding to broadcast</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -1512,6 +1568,32 @@ function wireUp() {
       renderBulbList(r.bulbs);
       toast(`found ${r.bulbs.length} bulb(s)`, 'success');
     } catch (e) { toast('scan failed', 'error'); }
+  });
+
+  // manual IP fallback — unicast probe when broadcast discovery fails
+  $('btn-manual-ip').addEventListener('click', async () => {
+    const ip = $('manual-ip').value.trim();
+    const result = $('manual-ip-result');
+    result.style.display = 'block';
+    if (!ip) {
+      result.className = 'verify-result err';
+      result.textContent = 'enter an IPv4 address first';
+      return;
+    }
+    result.className = 'verify-result';
+    result.textContent = `probing ${ip}...`;
+    try {
+      const r = await api.post('/api/bulb/probe', { ip });
+      result.className = 'verify-result ok';
+      result.innerHTML = `✓ bulb found: <code>${r.mac}</code> at <code>${r.ip}</code>` +
+        (r.module ? ` (${r.module})` : '') + ' — selected and saved.';
+      toast('bulb selected via manual IP', 'success');
+      loadConfig();
+      refresh();
+    } catch (e) {
+      result.className = 'verify-result err';
+      result.textContent = 'probe failed: ' + (e.message || e);
+    }
   });
 
   // autostart toggle

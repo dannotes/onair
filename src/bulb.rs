@@ -291,6 +291,38 @@ pub async fn discover(wait: Duration) -> Result<Vec<DiscoveredBulb>, BulbError> 
     Ok(found)
 }
 
+/// Unicast `registration` request to a single IP and parse the bulb's
+/// MAC from the reply. Used as a manual escape hatch when broadcast
+/// discovery returns zero bulbs — most commonly because the bulb has
+/// been "claimed" by another app (Philips WiZ, Alexa, Google Home) and
+/// its firmware stopped answering broadcast registration requests.
+/// Unicast always works regardless of claim state.
+pub async fn probe(ip: Ipv4Addr) -> Result<DiscoveredBulb, BulbError> {
+    let payload = serde_json::to_vec(&WizRequest {
+        method: "registration",
+        params: RegistrationParams {
+            phone_mac: "AAAAAAAAAAAA",
+            register: false,
+            phone_ip: "0.0.0.0",
+        },
+    })?;
+
+    let result = request(ip, payload).await?;
+
+    let mac = result
+        .get("mac")
+        .and_then(|v| v.as_str())
+        .map(normalize_mac)
+        .ok_or_else(|| BulbError::InvalidResponse("reply missing 'mac' field".into()))?;
+    let module = result
+        .get("moduleName")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    info!("probed bulb {} at {}", mac, ip);
+    Ok(DiscoveredBulb { mac, ip, module })
+}
+
 /// Turn the bulb on with the given RGB color and brightness (10..=100).
 pub async fn set_pilot_color(ip: Ipv4Addr, color: Rgb, dimming: u8) -> Result<(), BulbError> {
     // WiZ accepts dimming in 10..=100; clamp so callers don't have to.

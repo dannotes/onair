@@ -56,6 +56,7 @@ pub async fn serve(state: Arc<AppState>) -> anyhow::Result<()> {
         .route("/api/override", post(post_override))
         .route("/api/discover", post(post_discover))
         .route("/api/bulb/select", post(post_bulb_select))
+        .route("/api/bulb/probe", post(post_bulb_probe))
         .route("/api/bulb/state", get(get_bulb_state))
         .route("/api/bulb/test", post(post_bulb_test))
         .route("/api/teams/verify", post(post_teams_verify))
@@ -524,6 +525,74 @@ async fn post_bulb_select(
         }))
         .into_response()
     }
+}
+
+// ============================================================================
+// /api/bulb/probe
+// ============================================================================
+
+#[derive(Deserialize)]
+struct BulbProbeBody {
+    ip: String,
+}
+
+/// Manual escape hatch for "claimed bulb" WiZ behaviour: user types in
+/// an IP they already know (from the router admin or the WiZ app), we
+/// unicast `registration` to it, parse the MAC from the reply, and
+/// persist both as the selected bulb. Bypasses broadcast discovery
+/// entirely so it works even when the bulb refuses to respond to
+/// broadcast registration requests.
+async fn post_bulb_probe(
+    State(state): State<Arc<AppState>>,
+    Json(body): Json<BulbProbeBody>,
+) -> Response {
+    let ip: Ipv4Addr = match body.ip.trim().parse() {
+        Ok(ip) => ip,
+        Err(_) => {
+            return err_json(StatusCode::BAD_REQUEST, "invalid IPv4 address");
+        }
+    };
+
+    let found = match bulb::probe(ip).await {
+        Ok(b) => b,
+        Err(e) => {
+            state.log_event(
+                EventLevel::Wrn,
+                format!("manual probe {} failed: {}", ip, e),
+            );
+            return err_json(
+                StatusCode::NOT_FOUND,
+                format!(
+                    "no bulb responded at {}: {} (check the IP in your router admin or the WiZ app)",
+                    ip, e
+                ),
+            );
+        }
+    };
+
+    // Persist the binding and go live immediately — no background resolve
+    // step, since we already have a known-good unicast path.
+    {
+        let mut cfg = state.config.write();
+        cfg.bulb_mac = found.mac.clone();
+        cfg.bulb_last_ip = ip.to_string();
+    }
+    state.persist_config();
+    *state.bulb_ip.write() = Some(ip);
+    *state.bulb_reachable.write() = true;
+
+    state.log_event(
+        EventLevel::Ok,
+        format!("manually selected bulb {} at {}", found.mac, ip),
+    );
+
+    Json(serde_json::json!({
+        "ok": true,
+        "mac": found.mac,
+        "ip": ip.to_string(),
+        "module": found.module,
+    }))
+    .into_response()
 }
 
 // ============================================================================

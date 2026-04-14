@@ -107,7 +107,7 @@ async fn main() -> Result<()> {
                 } else if bulbs.is_empty() {
                     state.log_event(
                         EventLevel::Wrn,
-                        "no bulbs found — open http://localhost:9876 and click Scan Network",
+                        "no bulbs responded to broadcast discovery — this is normal if your bulb is already paired with the Philips WiZ app, Alexa, or Google Home. Open http://localhost:9876 → Settings → Bulb Selection and enter the bulb's IP directly.",
                     );
                 } else {
                     state.log_event(

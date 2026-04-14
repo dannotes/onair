@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  macOS launchd agent for onair.
+
+  Install:
+    1. Copy this file to ~/Library/LaunchAgents/com.dannotes.onair.plist
+    2. Edit the ProgramArguments path below if `which onair` returns a different path
+       (default assumes Homebrew on Apple Silicon at /opt/homebrew/bin/onair —
+        for Intel Macs it's /usr/local/bin/onair)
+    3. Run:  launchctl load ~/Library/LaunchAgents/com.dannotes.onair.plist
+
+  Uninstall:
+       launchctl unload ~/Library/LaunchAgents/com.dannotes.onair.plist
+       rm           ~/Library/LaunchAgents/com.dannotes.onair.plist
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.dannotes.onair</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/onair</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/tmp/onair.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>/tmp/onair.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>RUST_LOG</key>
+        <string>info</string>
+    </dict>
+</dict>
+</plist>

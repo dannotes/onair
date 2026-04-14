@@ -1,0 +1,30 @@
+# systemd user unit for onair.
+#
+# Install:
+#   mkdir -p ~/.config/systemd/user
+#   cp dist/autostart/linux/onair.service ~/.config/systemd/user/onair.service
+#   # Edit ExecStart below if `which onair` returns a different path
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now onair.service
+#
+# Logs:
+#   journalctl --user -u onair -f
+#
+# Uninstall:
+#   systemctl --user disable --now onair.service
+#   rm ~/.config/systemd/user/onair.service
+
+[Unit]
+Description=onair — Microsoft Teams presence indicator for Philips WiZ bulbs
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/onair
+Restart=on-failure
+RestartSec=5
+Environment=RUST_LOG=info
+
+[Install]
+WantedBy=default.target

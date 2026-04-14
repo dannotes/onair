@@ -1,0 +1,1534 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<title>Onair</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,700&family=JetBrains+Mono:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:        #08080a;
+    --bg-2:      #0e0e11;
+    --surface:   #111114;
+    --surface-2: #17171b;
+    --surface-3: #1d1d22;
+    --border:    #26262c;
+    --border-2:  #34343c;
+    --text:      #e9e9ec;
+    --text-2:    #b4b4ba;
+    --text-3:    #71717a;
+    --text-4:    #4a4a52;
+    --red:       #ef4444;
+    --red-2:     #dc2626;
+    --red-dim:   #7f1d1d;
+    --green:     #22c55e;
+    --green-2:   #16a34a;
+    --green-dim: #14532d;
+    --amber:     #f59e0b;
+    --amber-dim: #78350f;
+    --blue:      #60a5fa;
+    --shadow:    0 1px 0 rgba(255,255,255,0.04) inset, 0 0 0 1px rgba(255,255,255,0.02);
+    --radius:    8px;
+    --radius-sm: 4px;
+    --radius-lg: 12px;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  *::selection { background: var(--red); color: #000; }
+
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(1200px 700px at 50% -200px, #161620 0%, transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 13px;
+    font-weight: 400;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    min-height: 100vh;
+    padding: 2rem 1.25rem 4rem;
+  }
+
+  /* very subtle grain so flat surfaces don't look flat */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1000;
+    opacity: 0.025;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'DM Sans', system-ui, sans-serif;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    color: var(--text);
+  }
+
+  button, input, select, textarea {
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+  }
+
+  a { color: inherit; text-decoration: none; }
+  a:hover { color: var(--text); }
+  code { font-family: 'JetBrains Mono', monospace; }
+
+  /* ---------- LAYOUT ---------- */
+  .app {
+    max-width: 760px;
+    margin: 0 auto;
+    position: relative;
+  }
+
+  /* ---------- HEADER ---------- */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0 1.5rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+  .header::after {
+    content: '';
+    position: absolute;
+    left: 0; right: 0; bottom: -1px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border-2) 20%, var(--border-2) 80%, transparent);
+  }
+  .brand {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+  }
+  .brand h1 {
+    font-size: 1.4rem;
+    line-height: 1;
+    letter-spacing: -0.04em;
+  }
+  .brand h1 .dot {
+    color: var(--red);
+    text-shadow: 0 0 12px rgba(239,68,68,0.6);
+  }
+  .badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-3);
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    padding: 0.18rem 0.55rem;
+    border-radius: 99px;
+  }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    font-size: 0.7rem;
+    color: var(--text-3);
+  }
+  .uptime { font-variant-numeric: tabular-nums; }
+  .uptime .label {
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-right: 0.4rem;
+    color: var(--text-4);
+  }
+
+  /* ---------- STATUS SECTION ---------- */
+  .status-section {
+    display: grid;
+    grid-template-columns: 220px 1fr;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+  }
+
+  .beacon-card {
+    background:
+      radial-gradient(circle at 50% 35%, rgba(255,255,255,0.02), transparent 70%),
+      var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.75rem 1rem 1.4rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.4s ease;
+  }
+  .beacon-card.is-call    { border-color: var(--red-dim); }
+  .beacon-card.is-idle    { border-color: var(--green-dim); }
+  .beacon-card.is-warn    { border-color: var(--amber-dim); }
+
+  /* wrapping (grace window) — wrap the beacon in a rotating arc spinner */
+  .beacon-wrap {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1;
+  }
+  .beacon-wrap::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+  }
+  .beacon-wrap.is-wrapping::before {
+    opacity: 1;
+    border-top-color: rgba(239, 68, 68, 0.95);
+    border-right-color: rgba(239, 68, 68, 0.45);
+    border-bottom-color: rgba(239, 68, 68, 0.15);
+    animation: spin-arc 1.4s linear infinite;
+  }
+  @keyframes spin-arc {
+    to { transform: rotate(360deg); }
+  }
+  .beacon-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.03) 0%, transparent 30%);
+  }
+
+  .beacon {
+    width: 76px;
+    height: 76px;
+    border-radius: 50%;
+    background: var(--surface-3);
+    border: 2px solid var(--border-2);
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    z-index: 1;
+  }
+  .beacon.is-on {
+    border-color: transparent;
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  .beacon.is-warn {
+    border: 2px dashed var(--amber);
+    background: var(--surface-3);
+  }
+  .beacon.is-empty {
+    border: 2px dotted var(--text-4);
+    background: transparent;
+  }
+
+  @keyframes pulse {
+    0%, 100% { transform: scale(1);     filter: brightness(1); }
+    50%      { transform: scale(1.05);  filter: brightness(1.15); }
+  }
+
+  .beacon-label {
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 500;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--text-3);
+    z-index: 1;
+    transition: color 0.4s ease;
+  }
+  .beacon-label.is-call { color: var(--red); }
+  .beacon-label.is-idle { color: var(--green); }
+  .beacon-label.is-warn { color: var(--amber); }
+
+  .beacon-sub {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    color: var(--text-4);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    z-index: 1;
+    margin-top: -0.5rem;
+  }
+
+  /* INFO GRID */
+  .info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+  }
+  .info-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.85rem 1rem 0.9rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .info-card .label {
+    font-size: 0.6rem;
+    color: var(--text-4);
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 0.4rem;
+  }
+  .info-card .value {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+  }
+  .info-card .value.muted { color: var(--text-2); }
+
+  /* ---------- BULB BAR ---------- */
+  .bulb-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.7rem 1rem;
+    margin-bottom: 1rem;
+    font-size: 0.72rem;
+    flex-wrap: wrap;
+  }
+  .bulb-bar .swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--surface-3);
+    border: 1px solid var(--border-2);
+    flex-shrink: 0;
+    transition: all 0.4s ease;
+  }
+  .bulb-bar .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-4);
+    flex-shrink: 0;
+    transition: background 0.3s ease;
+  }
+  .bulb-bar .dot.connected { background: var(--green); box-shadow: 0 0 6px var(--green); }
+  .bulb-bar .dot.disconnected { background: var(--red); }
+  .bulb-bar .dot.warn { background: var(--amber); }
+
+  .bulb-bar .name {
+    color: var(--text-2);
+    font-weight: 500;
+  }
+  .bulb-bar .sep { color: var(--border-2); user-select: none; }
+  .bulb-bar .field { color: var(--text-4); text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.6rem; }
+  .bulb-bar code { color: var(--text); font-size: 0.72rem; }
+  .bulb-bar .signal {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .bulb-bar .signal-quality { color: var(--green); font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.08em; }
+  .bulb-bar .signal-quality.fair { color: var(--amber); }
+  .bulb-bar .signal-quality.poor { color: var(--red); }
+
+  .bulb-bar.empty {
+    color: var(--amber);
+    border-color: var(--amber-dim);
+  }
+
+  /* ---------- CONTROLS ---------- */
+  .controls {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+  .btn {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.68rem;
+    font-weight: 500;
+    padding: 0.5rem 0.9rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    color: var(--text-2);
+    cursor: pointer;
+    transition: all 0.18s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+  .btn:hover {
+    background: var(--surface-2);
+    color: var(--text);
+    border-color: var(--border-2);
+    transform: translateY(-1px);
+  }
+  .btn:active { transform: translateY(0); }
+  .btn.active {
+    background: var(--surface-3);
+    color: var(--text);
+    border-color: var(--text-3);
+    box-shadow: 0 0 0 1px var(--text-4) inset;
+  }
+  .btn.danger:hover {
+    border-color: var(--red-dim);
+    color: var(--red);
+  }
+  .btn.primary {
+    background: var(--text);
+    color: var(--bg);
+    border-color: var(--text);
+  }
+  .btn.primary:hover { background: #fff; }
+  .btn.tiny { padding: 0.32rem 0.7rem; font-size: 0.62rem; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  /* ---------- CONSOLE ---------- */
+  .console {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin-bottom: 1.25rem;
+  }
+  .console-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.65rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+  .console-header h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--text-3);
+  }
+  .console-header .live {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.6rem;
+    color: var(--green);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .console-header .live::before {
+    content: '';
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green);
+    animation: blink 1.6s ease-in-out infinite;
+  }
+  @keyframes blink { 0%,100% { opacity: 1 } 50% { opacity: 0.3 } }
+
+  .console-body {
+    height: 280px;
+    overflow-y: auto;
+    padding: 0.5rem 0;
+    font-size: 0.7rem;
+    line-height: 1.7;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-2) transparent;
+  }
+  .console-body::-webkit-scrollbar { width: 6px; }
+  .console-body::-webkit-scrollbar-track { background: transparent; }
+  .console-body::-webkit-scrollbar-thumb { background: var(--border-2); border-radius: 3px; }
+  .console-body::-webkit-scrollbar-thumb:hover { background: var(--text-4); }
+
+  .log-entry {
+    padding: 0 1rem;
+    display: flex;
+    gap: 0.7rem;
+    font-family: 'JetBrains Mono', monospace;
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-2px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .log-entry:hover { background: rgba(255,255,255,0.02); }
+  .log-entry .ts {
+    color: var(--text-4);
+    flex-shrink: 0;
+    user-select: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .log-entry .lvl {
+    flex-shrink: 0;
+    width: 3ch;
+    font-weight: 500;
+  }
+  .log-entry .lvl.inf { color: var(--blue); }
+  .log-entry .lvl.ok  { color: var(--green); }
+  .log-entry .lvl.wrn { color: var(--amber); }
+  .log-entry .lvl.err { color: var(--red); }
+  .log-entry .msg { color: var(--text-2); word-break: break-word; min-width: 0; }
+  .log-entry .msg .hl-r { color: var(--red); font-weight: 500; }
+  .log-entry .msg .hl-g { color: var(--green); font-weight: 500; }
+  .log-entry .msg .hl-m { color: var(--text-4); }
+  .log-entry.placeholder .msg { color: var(--text-4); font-style: italic; }
+
+  /* ---------- SETTINGS ---------- */
+  details.settings {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  details.settings > summary {
+    padding: 0.85rem 1rem;
+    background: var(--surface-2);
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid transparent;
+    transition: background 0.2s;
+    user-select: none;
+  }
+  details.settings > summary::-webkit-details-marker { display: none; }
+  details.settings > summary:hover { background: var(--surface-3); }
+  details.settings[open] > summary { border-bottom-color: var(--border); }
+  details.settings > summary .sum-l {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.78rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text-2);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  details.settings > summary .sum-l svg {
+    color: var(--text-4);
+    flex-shrink: 0;
+  }
+  details.settings[open] > summary .sum-l svg { color: var(--text-2); }
+  details.settings > summary .chev {
+    color: var(--text-4);
+    transition: transform 0.25s ease;
+    font-size: 0.65rem;
+  }
+  details.settings[open] > summary .chev { transform: rotate(90deg); }
+
+  .settings-body {
+    padding: 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+  .settings-section h4 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.62rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--text-3);
+    margin-bottom: 0.85rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .settings-section h4::before {
+    content: '';
+    width: 4px; height: 4px;
+    background: var(--text-3);
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .field-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.85rem 1rem;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+  .field label {
+    font-size: 0.6rem;
+    color: var(--text-4);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .field input[type="number"],
+  .field input[type="text"],
+  .field select {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.5rem 0.7rem;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    transition: border-color 0.15s ease;
+    width: 100%;
+  }
+  .field input:focus,
+  .field select:focus {
+    outline: none;
+    border-color: var(--text-3);
+  }
+  .field-row {
+    display: flex;
+    gap: 0.4rem;
+    align-items: center;
+  }
+  .field .hint { font-size: 0.6rem; color: var(--text-4); }
+
+  /* color-mode cards */
+  .mode-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+  }
+  .mode-card {
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem;
+  }
+  .mode-card h5 {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-2);
+    margin-bottom: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .mode-card h5 .preview {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--text-4);
+    border: 1px solid var(--border-2);
+  }
+  .radio-row {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 0.85rem;
+    font-size: 0.7rem;
+  }
+  .radio-row label {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    cursor: pointer;
+    color: var(--text-3);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.62rem;
+  }
+  .radio-row input[type="radio"] {
+    accent-color: var(--text);
+  }
+
+  .color-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.85rem;
+  }
+  .color-row input[type="color"] {
+    width: 36px; height: 32px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface-3);
+    cursor: pointer;
+    padding: 0;
+  }
+  .color-row input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+  .color-row input[type="color"]::-webkit-color-swatch { border: none; border-radius: 2px; }
+  .color-row input[type="text"] {
+    flex: 1;
+    text-transform: uppercase;
+  }
+
+  .brightness-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 0.85rem;
+  }
+  .brightness-row input[type="range"] {
+    flex: 1;
+    accent-color: var(--text);
+  }
+  .brightness-row .val {
+    width: 3.5ch;
+    text-align: right;
+    color: var(--text-2);
+    font-variant-numeric: tabular-nums;
+    font-size: 0.72rem;
+  }
+
+  .mode-card.disabled .color-row,
+  .mode-card.disabled .brightness-row { opacity: 0.4; pointer-events: none; }
+
+  /* bulb selection table */
+  .bulb-table-wrap { margin-top: 0.75rem; }
+  .bulb-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.7rem;
+  }
+  .bulb-table th, .bulb-table td {
+    text-align: left;
+    padding: 0.55rem 0.7rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .bulb-table th {
+    color: var(--text-4);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.58rem;
+    font-weight: 500;
+  }
+  .bulb-table td { color: var(--text-2); font-family: 'JetBrains Mono', monospace; }
+  .bulb-table tr.selected { background: var(--surface-2); }
+  .bulb-table tr.selected td:first-child::before {
+    content: '◆ ';
+    color: var(--green);
+  }
+  .bulb-table tr { cursor: pointer; transition: background 0.15s; }
+  .bulb-table tr:hover { background: var(--surface-2); }
+  .bulb-table .empty-row td {
+    color: var(--text-4);
+    text-align: center;
+    font-style: italic;
+    padding: 1rem;
+  }
+
+  .verify-result {
+    margin-top: 0.5rem;
+    padding: 0.6rem 0.75rem;
+    background: var(--bg-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    font-size: 0.65rem;
+    color: var(--text-3);
+    line-height: 1.6;
+  }
+  .verify-result.ok { border-color: var(--green-dim); }
+  .verify-result.err { border-color: var(--red-dim); color: var(--red); }
+  .verify-result code { color: var(--text-2); }
+
+  .save-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    margin-top: 0.5rem;
+  }
+  .save-bar .hint { font-size: 0.62rem; color: var(--text-4); }
+
+  /* ---------- TOAST ---------- */
+  .toast-host {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .toast {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 0.65rem 1rem;
+    font-size: 0.7rem;
+    color: var(--text);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    animation: slideIn 0.25s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-width: 200px;
+  }
+  .toast.success { border-left: 2px solid var(--green); }
+  .toast.error   { border-left: 2px solid var(--red); }
+  .toast.info    { border-left: 2px solid var(--blue); }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateX(20px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+
+  /* ---------- FOOTER ---------- */
+  .footer {
+    margin-top: 1.5rem;
+    padding-top: 1rem;
+    border-top: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.62rem;
+    color: var(--text-4);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+  .footer a:hover { color: var(--text-2); }
+
+  /* ---------- RESPONSIVE ---------- */
+  @media (max-width: 640px) {
+    body { padding: 1rem 0.75rem 3rem; }
+    .status-section { grid-template-columns: 1fr; }
+    .beacon-card { padding: 1.5rem; }
+    .info-grid { grid-template-columns: 1fr 1fr; }
+    .field-grid { grid-template-columns: 1fr; }
+    .mode-cards { grid-template-columns: 1fr; }
+    .bulb-bar { font-size: 0.68rem; }
+    .header-right { gap: 0.6rem; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="brand">
+      <h1>onair<span class="dot">.</span></h1>
+      <span class="badge" id="version">v0.1</span>
+    </div>
+    <div class="header-right">
+      <span class="uptime"><span class="label">up</span><span id="uptime">--</span></span>
+    </div>
+  </header>
+
+  <!-- STATUS + INFO -->
+  <section class="status-section">
+    <div class="beacon-card" id="beacon-card">
+      <div class="beacon-wrap" id="beacon-wrap">
+        <div class="beacon is-empty" id="beacon"></div>
+      </div>
+      <span class="beacon-label" id="beacon-label">Connecting</span>
+      <span class="beacon-sub" id="beacon-sub">—</span>
+    </div>
+
+    <div class="info-grid">
+      <div class="info-card">
+        <div class="label">Duration</div>
+        <div class="value" id="duration">00:00:00</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Calls Today</div>
+        <div class="value" id="calls-today">0</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Total Time</div>
+        <div class="value muted" id="total-time">0h 0m</div>
+      </div>
+      <div class="info-card">
+        <div class="label">Work Window</div>
+        <div class="value muted" id="work-window">--:00–--:00</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BULB BAR -->
+  <div class="bulb-bar" id="bulb-bar">
+    <div class="swatch" id="bulb-swatch"></div>
+    <div class="dot" id="bulb-dot"></div>
+    <span class="name">Philips WiZ</span>
+    <span class="sep">·</span>
+    <span class="field">mac</span><code id="bulb-mac">—</code>
+    <span class="sep">·</span>
+    <span class="field">ip</span><code id="bulb-ip">—</code>
+    <span class="sep">·</span>
+    <span class="field">port</span><code>38899</code>
+    <span class="signal">
+      <span class="field">rssi</span><code id="bulb-rssi">—</code>
+      <span class="signal-quality" id="bulb-signal">—</span>
+    </span>
+  </div>
+
+  <!-- CONTROLS -->
+  <div class="controls">
+    <button class="btn active" data-mode="auto" id="ctrl-auto">Auto</button>
+    <button class="btn" data-mode="force_red" id="ctrl-red">Force Red</button>
+    <button class="btn" data-mode="force_off" id="ctrl-off">Force Off</button>
+    <button class="btn danger" id="ctrl-rescan">Restart Discovery</button>
+  </div>
+
+  <!-- CONSOLE -->
+  <div class="console">
+    <div class="console-header">
+      <h3>Console</h3>
+      <span class="live">live</span>
+    </div>
+    <div class="console-body" id="console">
+      <div class="log-entry placeholder">
+        <span class="ts">--:--:--</span>
+        <span class="lvl inf">INF</span>
+        <span class="msg">awaiting first event</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <details class="settings">
+    <summary>
+      <span class="sum-l">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="4" y1="6" x2="13" y2="6"/>
+          <line x1="17" y1="6" x2="20" y2="6"/>
+          <line x1="4" y1="12" x2="9" y2="12"/>
+          <line x1="13" y1="12" x2="20" y2="12"/>
+          <line x1="4" y1="18" x2="16" y2="18"/>
+          <line x1="20" y1="18" x2="20" y2="18"/>
+          <circle cx="15" cy="6" r="2"/>
+          <circle cx="11" cy="12" r="2"/>
+          <circle cx="18" cy="18" r="2"/>
+        </svg>
+        Settings
+      </span>
+      <span class="chev">▶</span>
+    </summary>
+    <div class="settings-body">
+
+      <!-- GENERAL -->
+      <div class="settings-section">
+        <h4>General</h4>
+        <div class="field-grid">
+          <div class="field">
+            <label>Work Start (hour)</label>
+            <input type="number" id="cfg-work-start" min="0" max="23">
+          </div>
+          <div class="field">
+            <label>Work End (hour)</label>
+            <input type="number" id="cfg-work-end" min="0" max="23">
+          </div>
+          <div class="field">
+            <label>Poll Interval (sec)</label>
+            <input type="number" id="cfg-poll" min="1" max="30">
+          </div>
+          <div class="field">
+            <label>Grace Period (sec)</label>
+            <input type="number" id="cfg-grace" min="0" max="120">
+          </div>
+          <div class="field">
+            <label>Max Call Cap (hours)</label>
+            <input type="number" id="cfg-maxcall" min="1" max="12">
+          </div>
+          <div class="field">
+            <label>Teams Offline (min)</label>
+            <input type="number" id="cfg-offline" min="1" max="60">
+          </div>
+        </div>
+      </div>
+
+      <!-- WHEN ON A CALL / IDLE -->
+      <div class="settings-section">
+        <h4>Bulb Modes</h4>
+        <div class="mode-cards">
+
+          <div class="mode-card" id="mc-call">
+            <h5><span class="preview" id="prev-call"></span>When on a Call</h5>
+            <div class="radio-row">
+              <label><input type="radio" name="call-state" value="on" id="call-on">show color</label>
+              <label><input type="radio" name="call-state" value="off" id="call-off">turn off</label>
+            </div>
+            <div class="color-row">
+              <input type="color" id="call-color" value="#FF0000">
+              <input type="text" id="call-hex" maxlength="7">
+            </div>
+            <div class="brightness-row">
+              <input type="range" id="call-bright" min="10" max="100" value="100">
+              <span class="val"><span id="call-bright-val">100</span>%</span>
+            </div>
+            <button class="btn tiny" data-test="call">Test</button>
+          </div>
+
+          <div class="mode-card" id="mc-idle">
+            <h5><span class="preview" id="prev-idle"></span>When Not on a Call</h5>
+            <div class="radio-row">
+              <label><input type="radio" name="idle-state" value="on" id="idle-on">show color</label>
+              <label><input type="radio" name="idle-state" value="off" id="idle-off">turn off</label>
+            </div>
+            <div class="color-row">
+              <input type="color" id="idle-color" value="#22C55E">
+              <input type="text" id="idle-hex" maxlength="7">
+            </div>
+            <div class="brightness-row">
+              <input type="range" id="idle-bright" min="10" max="100" value="50">
+              <span class="val"><span id="idle-bright-val">50</span>%</span>
+            </div>
+            <button class="btn tiny" data-test="idle">Test</button>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- BULB SELECTION -->
+      <div class="settings-section">
+        <h4>Bulb Selection</h4>
+        <div style="display:flex;gap:0.5rem;align-items:center;">
+          <button class="btn tiny" id="btn-scan">Scan Network</button>
+          <span class="hint" id="bulb-current">no bulb selected</span>
+        </div>
+        <div class="bulb-table-wrap">
+          <table class="bulb-table">
+            <thead>
+              <tr><th>Sel</th><th>MAC</th><th>IP</th><th>Module</th></tr>
+            </thead>
+            <tbody id="bulb-tbody">
+              <tr class="empty-row"><td colspan="4">click "Scan Network" to discover bulbs on your LAN</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TEAMS LOG -->
+      <div class="settings-section">
+        <h4>Teams Log Path</h4>
+        <div class="field">
+          <label>Log directory (leave empty for OS default)</label>
+          <div style="display:flex;gap:0.5rem;align-items:center;">
+            <input type="text" id="cfg-teams-path" placeholder="auto-detected" style="flex:1">
+            <button class="btn tiny" id="btn-verify">Verify</button>
+          </div>
+        </div>
+        <div class="verify-result" id="verify-result" style="display:none;"></div>
+      </div>
+
+      <!-- ADVANCED -->
+      <div class="settings-section">
+        <h4>Advanced</h4>
+        <div class="field-grid">
+          <div class="field">
+            <label>UI Port (restart req.)</label>
+            <input type="number" id="cfg-port" min="1024" max="65535">
+          </div>
+          <div class="field">
+            <label>Log Level</label>
+            <select id="cfg-loglevel">
+              <option value="debug">debug</option>
+              <option value="info">info</option>
+              <option value="warn">warn</option>
+              <option value="error">error</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- SAVE -->
+      <div class="save-bar">
+        <span class="hint">changes apply on next poll cycle</span>
+        <button class="btn primary" id="btn-save">Save Changes</button>
+      </div>
+
+    </div>
+  </details>
+
+  <!-- FOOTER -->
+  <footer class="footer">
+    <span>onair · rust + tokio</span>
+    <a href="#" id="footer-link">localhost:9876</a>
+  </footer>
+
+</div>
+
+<div class="toast-host" id="toast-host"></div>
+
+<script>
+//
+// onair dashboard — vanilla JS, no build step.
+// State is the latest /api/status response. Re-render on each poll.
+//
+const $  = (id) => document.getElementById(id);
+const fmt = {
+  duration(secs) {
+    secs = Math.max(0, Math.floor(secs || 0));
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  },
+  uptime(secs) {
+    secs = Math.max(0, Math.floor(secs || 0));
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  },
+  hm(secs) {
+    secs = Math.max(0, Math.floor(secs || 0));
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    return `${h}h ${m}m`;
+  },
+  rgbCss(r, g, b) { return `rgb(${r|0},${g|0},${b|0})`; },
+  rgbaCss(r, g, b, a) { return `rgba(${r|0},${g|0},${b|0},${a})`; },
+  hex(r, g, b) {
+    const t = (n) => n.toString(16).padStart(2,'0').toUpperCase();
+    return `#${t(r|0)}${t(g|0)}${t(b|0)}`;
+  },
+};
+
+const api = {
+  async get(path) {
+    const r = await fetch(path);
+    if (!r.ok) throw new Error(`${path}: ${r.status}`);
+    return r.json();
+  },
+  async post(path, body) {
+    const r = await fetch(path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body || {}),
+    });
+    if (!r.ok) throw new Error(`${path}: ${r.status}`);
+    return r.json();
+  },
+};
+
+// ---------- TOAST ----------
+function toast(msg, kind='info') {
+  const host = $('toast-host');
+  const el = document.createElement('div');
+  el.className = `toast ${kind}`;
+  el.textContent = msg;
+  host.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transform = 'translateX(20px)';
+    el.style.transition = 'all 0.25s ease';
+    setTimeout(() => el.remove(), 250);
+  }, 2500);
+}
+
+// ---------- STATE RENDER ----------
+let lastStatus = null;
+let cfgCache = null;
+
+function render(status) {
+  lastStatus = status;
+
+  // Uptime
+  $('uptime').textContent = fmt.uptime(status.uptime_secs);
+
+  // Beacon
+  const beacon     = $('beacon');
+  const beaconWrap = $('beacon-wrap');
+  const beaconCard = $('beacon-card');
+  const label      = $('beacon-label');
+  const sub        = $('beacon-sub');
+
+  beacon.className = 'beacon';
+  beaconWrap.className = 'beacon-wrap';
+  beaconCard.className = 'beacon-card';
+  label.className = 'beacon-label';
+
+  const ov = status.override;
+  const live = status.bulb_live;
+  const display = status.display;          // app intent: off|call|idle
+  const grace = status.grace_pending;       // currently in 30s wrap-down
+
+  if (!status.bulb_mac) {
+    beacon.classList.add('is-empty');
+    label.textContent = 'No Bulb';
+    label.classList.add('is-warn');
+    sub.textContent = 'open settings';
+  } else if (!status.bulb_connected || !live) {
+    beacon.classList.add('is-warn');
+    label.textContent = 'Unreachable';
+    label.classList.add('is-warn');
+    sub.textContent = 'retrying...';
+  } else if (live.state) {
+    beacon.classList.add('is-on');
+    beacon.style.background = fmt.rgbCss(live.r, live.g, live.b);
+    beacon.style.boxShadow =
+      `0 0 28px ${fmt.rgbaCss(live.r, live.g, live.b, 0.55)},` +
+      `0 0 64px ${fmt.rgbaCss(live.r, live.g, live.b, 0.20)}`;
+    if (ov === 'force_red') {
+      label.textContent = 'Manual Override';
+      label.classList.add('is-call');
+      beaconCard.classList.add('is-call');
+    } else if (display === 'call' && grace) {
+      label.textContent = 'Wrapping';
+      label.classList.add('is-call');
+      beaconCard.classList.add('is-call');
+      beaconWrap.classList.add('is-wrapping');
+    } else if (display === 'call') {
+      label.textContent = 'On Call';
+      label.classList.add('is-call');
+      beaconCard.classList.add('is-call');
+    } else {
+      // display === 'idle' with bulb on (user has idle_state = on)
+      label.textContent = 'Ambient';
+      label.classList.add('is-idle');
+      beaconCard.classList.add('is-idle');
+    }
+    if (display === 'call' && grace && status.grace_remaining_secs != null) {
+      sub.textContent = `wrapping · ${status.grace_remaining_secs}s`;
+    } else {
+      sub.textContent = `${fmt.hex(live.r, live.g, live.b)} · ${live.dimming}%`;
+    }
+  } else {
+    // bulb is off
+    beacon.style.background = '';
+    beacon.style.boxShadow  = '';
+    if (ov === 'force_off') {
+      label.textContent = 'Manual Off';
+      label.classList.add('is-warn');
+    } else if (display === 'call') {
+      label.textContent = 'On Call';
+      label.classList.add('is-call');
+    } else {
+      label.textContent = 'Monitoring';
+    }
+    sub.textContent = grace ? 'wrapping…' : 'bulb off';
+  }
+
+  // Info cards
+  $('duration').textContent = fmt.duration(status.call_duration_secs);
+  $('calls-today').textContent = status.calls_today;
+  $('total-time').textContent = fmt.hm(status.total_time_today_secs);
+
+  // Bulb bar
+  const swatch = $('bulb-swatch');
+  const dot    = $('bulb-dot');
+  if (live && live.state) {
+    swatch.style.background = fmt.rgbCss(live.r, live.g, live.b);
+    swatch.style.borderColor = fmt.rgbaCss(live.r, live.g, live.b, 0.6);
+  } else {
+    swatch.style.background = 'var(--surface-3)';
+    swatch.style.borderColor = 'var(--border-2)';
+  }
+  if (!status.bulb_mac) {
+    dot.className = 'dot warn';
+  } else if (status.bulb_connected) {
+    dot.className = 'dot connected';
+  } else {
+    dot.className = 'dot disconnected';
+  }
+
+  $('bulb-mac').textContent = status.bulb_mac || '—';
+  $('bulb-ip').textContent  = status.bulb_ip || '—';
+  $('bulb-rssi').textContent = live ? `${live.rssi} dBm` : '—';
+  const sq = $('bulb-signal');
+  if (live && live.signal_quality) {
+    sq.textContent = live.signal_quality;
+    sq.className = 'signal-quality';
+    if (live.signal_quality === 'Fair') sq.classList.add('fair');
+    if (live.signal_quality === 'Poor') sq.classList.add('poor');
+  } else {
+    sq.textContent = '—';
+    sq.className = 'signal-quality';
+  }
+
+  // Override buttons
+  for (const id of ['ctrl-auto','ctrl-red','ctrl-off']) {
+    $(id).classList.remove('active');
+  }
+  if (ov === 'auto')      $('ctrl-auto').classList.add('active');
+  if (ov === 'force_red') $('ctrl-red').classList.add('active');
+  if (ov === 'force_off') $('ctrl-off').classList.add('active');
+}
+
+// ---------- LOG RENDER ----------
+let lastLogId = 0;
+
+function highlight(msg) {
+  // escape HTML first
+  let m = msg.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  // highlight known tokens
+  m = m.replace(/\b(busy|donotdisturb|RED|red)\b/g, '<span class="hl-r">$1</span>');
+  m = m.replace(/\b(available|OK|ok|OFF|off)\b/g, '<span class="hl-g">$1</span>');
+  m = m.replace(/\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b/g, '<span class="hl-m">$1</span>');
+  m = m.replace(/\b([0-9a-f]{12})\b/gi, '<span class="hl-m">$1</span>');
+  m = m.replace(/\((\d+s)\)/g, '<span class="hl-m">($1)</span>');
+  return m;
+}
+
+function renderLogs(events) {
+  const console = $('console');
+  // remove placeholder if present
+  const placeholder = console.querySelector('.placeholder');
+  if (placeholder && events.length > 0) placeholder.remove();
+
+  for (const ev of events) {
+    if (ev.id <= lastLogId) continue;
+    lastLogId = ev.id;
+    const line = document.createElement('div');
+    line.className = 'log-entry';
+    const ts = new Date(ev.ts);
+    const t = `${String(ts.getHours()).padStart(2,'0')}:${String(ts.getMinutes()).padStart(2,'0')}:${String(ts.getSeconds()).padStart(2,'0')}`;
+    line.innerHTML =
+      `<span class="ts">${t}</span>` +
+      `<span class="lvl ${ev.level.toLowerCase()}">${ev.level}</span>` +
+      `<span class="msg">${highlight(ev.message)}</span>`;
+    console.appendChild(line);
+  }
+  // trim to last 200 entries
+  while (console.children.length > 200) console.removeChild(console.firstChild);
+  // auto-scroll
+  console.scrollTop = console.scrollHeight;
+}
+
+// ---------- SETTINGS RENDER ----------
+function renderConfig(cfg) {
+  cfgCache = cfg;
+  $('cfg-work-start').value = cfg.work_start;
+  $('cfg-work-end').value   = cfg.work_end;
+  $('cfg-poll').value       = cfg.poll_interval_secs;
+  $('cfg-grace').value      = cfg.grace_period_secs;
+  $('cfg-maxcall').value    = cfg.max_call_hours;
+  $('cfg-offline').value    = cfg.teams_offline_mins;
+  $('cfg-port').value       = cfg.ui_port;
+  $('cfg-loglevel').value   = cfg.log_level;
+  $('cfg-teams-path').value = cfg.teams_log_dir || '';
+
+  $('work-window').textContent =
+    `${String(cfg.work_start).padStart(2,'0')}:00–${String(cfg.work_end).padStart(2,'0')}:00`;
+
+  // call mode
+  const callOn = cfg.call_state === 'on';
+  $('call-on').checked = callOn;
+  $('call-off').checked = !callOn;
+  $('mc-call').classList.toggle('disabled', !callOn);
+  const callHex = rgbToHex(cfg.call_color);
+  $('call-color').value = callHex;
+  $('call-hex').value = callHex;
+  $('call-bright').value = cfg.call_brightness;
+  $('call-bright-val').textContent = cfg.call_brightness;
+  $('prev-call').style.background = callHex;
+
+  const idleOn = cfg.idle_state === 'on';
+  $('idle-on').checked = idleOn;
+  $('idle-off').checked = !idleOn;
+  $('mc-idle').classList.toggle('disabled', !idleOn);
+  const idleHex = rgbToHex(cfg.idle_color);
+  $('idle-color').value = idleHex;
+  $('idle-hex').value = idleHex;
+  $('idle-bright').value = cfg.idle_brightness;
+  $('idle-bright-val').textContent = cfg.idle_brightness;
+  $('prev-idle').style.background = idleHex;
+
+  // bulb selection display
+  $('bulb-current').textContent = cfg.bulb_mac
+    ? `selected: ${cfg.bulb_mac}`
+    : 'no bulb selected';
+}
+
+function rgbToHex(rgb) {
+  if (typeof rgb === 'string') return rgb;
+  return fmt.hex(rgb.r, rgb.g, rgb.b);
+}
+function hexToRgb(h) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(h);
+  if (!m) return null;
+  const v = parseInt(m[1], 16);
+  return { r: (v >> 16) & 255, g: (v >> 8) & 255, b: v & 255 };
+}
+
+// ---------- WIRE UP CONTROLS ----------
+function wireUp() {
+  // override buttons
+  for (const id of ['ctrl-auto','ctrl-red','ctrl-off']) {
+    $(id).addEventListener('click', async () => {
+      const mode = $(id).dataset.mode;
+      try { await api.post('/api/override', { mode }); refresh(); }
+      catch (e) { toast('failed: ' + e.message, 'error'); }
+    });
+  }
+  $('ctrl-rescan').addEventListener('click', async () => {
+    toast('scanning network...', 'info');
+    try {
+      const r = await api.post('/api/discover', {});
+      toast(`found ${r.bulbs.length} bulb(s)`, 'success');
+      renderBulbList(r.bulbs);
+    } catch (e) { toast('discovery failed', 'error'); }
+  });
+
+  // bulb mode color/hex sync
+  function syncColor(picker, hex, prev) {
+    $(picker).addEventListener('input', () => {
+      const v = $(picker).value.toUpperCase();
+      $(hex).value = v;
+      $(prev).style.background = v;
+    });
+    $(hex).addEventListener('input', () => {
+      const v = $(hex).value.toUpperCase();
+      if (/^#[0-9A-F]{6}$/.test(v)) {
+        $(picker).value = v;
+        $(prev).style.background = v;
+      }
+    });
+  }
+  syncColor('call-color','call-hex','prev-call');
+  syncColor('idle-color','idle-hex','prev-idle');
+
+  // brightness sliders
+  $('call-bright').addEventListener('input', () => $('call-bright-val').textContent = $('call-bright').value);
+  $('idle-bright').addEventListener('input', () => $('idle-bright-val').textContent = $('idle-bright').value);
+
+  // mode-card disable on radio change
+  document.querySelectorAll('input[name="call-state"]').forEach(r => {
+    r.addEventListener('change', () => $('mc-call').classList.toggle('disabled', $('call-off').checked));
+  });
+  document.querySelectorAll('input[name="idle-state"]').forEach(r => {
+    r.addEventListener('change', () => $('mc-idle').classList.toggle('disabled', $('idle-off').checked));
+  });
+
+  // test buttons
+  document.querySelectorAll('[data-test]').forEach(b => {
+    b.addEventListener('click', async () => {
+      const mode = b.dataset.test;
+      try {
+        await api.post('/api/bulb/test', { mode });
+        toast(`testing ${mode}... (3s)`, 'info');
+      } catch (e) { toast('test failed: ' + e.message, 'error'); }
+    });
+  });
+
+  // bulb scan button
+  $('btn-scan').addEventListener('click', async () => {
+    toast('scanning...', 'info');
+    try {
+      const r = await api.post('/api/discover', {});
+      renderBulbList(r.bulbs);
+      toast(`found ${r.bulbs.length} bulb(s)`, 'success');
+    } catch (e) { toast('scan failed', 'error'); }
+  });
+
+  // verify button
+  $('btn-verify').addEventListener('click', async () => {
+    const path = $('cfg-teams-path').value.trim();
+    try {
+      const r = await api.post('/api/teams/verify', path ? { path } : {});
+      const div = $('verify-result');
+      div.style.display = 'block';
+      if (r.dir_exists && r.log_files_count > 0) {
+        div.className = 'verify-result ok';
+        div.innerHTML = `✓ found <code>${r.log_files_count}</code> log file(s). latest: <code>${(r.latest_log || '').split('/').pop()}</code><br>` +
+          (r.sample_match ? `sample match: <code>${r.sample_match.slice(0, 120)}…</code>` : 'no presence events seen yet');
+      } else {
+        div.className = 'verify-result err';
+        div.textContent = r.error || 'directory invalid';
+      }
+    } catch (e) { toast('verify failed', 'error'); }
+  });
+
+  // save button
+  $('btn-save').addEventListener('click', async () => {
+    const cfg = {
+      work_start: parseInt($('cfg-work-start').value, 10),
+      work_end:   parseInt($('cfg-work-end').value, 10),
+      poll_interval_secs: parseInt($('cfg-poll').value, 10),
+      grace_period_secs: parseInt($('cfg-grace').value, 10),
+      max_call_hours: parseInt($('cfg-maxcall').value, 10),
+      teams_offline_mins: parseInt($('cfg-offline').value, 10),
+      call_state: $('call-on').checked ? 'on' : 'off',
+      call_color: $('call-hex').value || $('call-color').value,
+      call_brightness: parseInt($('call-bright').value, 10),
+      idle_state: $('idle-on').checked ? 'on' : 'off',
+      idle_color: $('idle-hex').value || $('idle-color').value,
+      idle_brightness: parseInt($('idle-bright').value, 10),
+      ui_port: parseInt($('cfg-port').value, 10),
+      log_level: $('cfg-loglevel').value,
+      teams_log_dir: $('cfg-teams-path').value.trim() || null,
+    };
+    try {
+      await api.post('/api/config', cfg);
+      toast('settings saved', 'success');
+      loadConfig();
+    } catch (e) { toast('save failed: ' + e.message, 'error'); }
+  });
+}
+
+function renderBulbList(bulbs) {
+  const tbody = $('bulb-tbody');
+  tbody.innerHTML = '';
+  if (!bulbs.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="4">no bulbs found</td></tr>';
+    return;
+  }
+  for (const b of bulbs) {
+    const tr = document.createElement('tr');
+    if (b.selected) tr.classList.add('selected');
+    tr.innerHTML =
+      `<td>${b.selected ? '◆' : ''}</td>` +
+      `<td>${b.mac}</td>` +
+      `<td>${b.ip}</td>` +
+      `<td>${b.module || '-'}</td>`;
+    tr.addEventListener('click', async () => {
+      try {
+        await api.post('/api/bulb/select', { mac: b.mac });
+        toast(`bulb ${b.mac} selected`, 'success');
+        loadConfig();
+        refresh();
+      } catch (e) { toast('select failed', 'error'); }
+    });
+    tbody.appendChild(tr);
+  }
+}
+
+// ---------- POLL LOOPS ----------
+async function refresh() {
+  try {
+    const status = await api.get('/api/status');
+    render(status);
+    const logs = await api.get('/api/logs?limit=200');
+    renderLogs(logs.events);
+  } catch (e) {
+    // silent — server may be restarting
+  }
+}
+async function loadConfig() {
+  try {
+    const cfg = await api.get('/api/config');
+    renderConfig(cfg);
+  } catch (e) {
+    toast('config load failed', 'error');
+  }
+}
+
+// ---------- BOOT ----------
+$('footer-link').textContent = `localhost:${location.port || '9876'}`;
+$('footer-link').href = location.origin;
+wireUp();
+loadConfig();
+refresh();
+setInterval(refresh, 3000);
+</script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ScoopInstaller/Scoop/master/schema.json",
+  "version": "0.1.0",
+  "description": "Watch Microsoft Teams and turn a Philips WiZ smart bulb red while you're on a call",
+  "homepage": "https://github.com/dannotes/onair",
+  "license": "MIT",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/dannotes/onair/releases/download/v0.1.0/onair-x86_64-pc-windows-msvc.zip",
+      "hash": "REPLACE_ME_WITH_REAL_SHA256"
+    }
+  },
+  "bin": "onair.exe",
+  "notes": [
+    "onair runs as a foreground daemon and serves a dashboard at http://localhost:9876",
+    "To run it on login, drop a shortcut into the Startup folder. See README for details.",
+    "Config DB lives at %APPDATA%\\Onair\\onair.db"
+  ],
+  "checkver": {
+    "github": "https://github.com/dannotes/onair"
+  },
+  "autoupdate": {
+    "architecture": {
+      "64bit": {
+        "url": "https://github.com/dannotes/onair/releases/download/v$version/onair-x86_64-pc-windows-msvc.zip"
+      }
+    },
+    "hash": {
+      "url": "$baseurl/onair-x86_64-pc-windows-msvc.zip.sha256"
+    }
+  }
+}

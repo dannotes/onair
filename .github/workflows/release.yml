@@ -11,6 +11,9 @@ permissions:
 
 env:
   CARGO_TERM_COLOR: always
+  # Silence "Node 20 deprecated" warning by forcing v4 actions onto Node 24.
+  # Remove once we've bumped checkout/upload-artifact to a v5 that natively uses Node 24.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   build:
@@ -23,8 +26,12 @@ jobs:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
             archive: tar.gz
+          # Intel Mac is cross-compiled FROM the Apple Silicon runner. macos-13
+          # was retired by GitHub, and macos-latest is ARM-only. clang on macOS
+          # supports both targets natively, and rusqlite/bundled compiles cleanly
+          # via the cc crate's automatic cross-compile.
           - target: x86_64-apple-darwin
-            os: macos-13
+            os: macos-latest
             archive: tar.gz
           - target: aarch64-apple-darwin
             os: macos-latest

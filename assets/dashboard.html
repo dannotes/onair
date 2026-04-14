@@ -927,7 +927,7 @@
   <header class="header">
     <div class="brand">
       <h1>onair<span class="dot">.</span></h1>
-      <span class="badge" id="version">v0.1</span>
+      <span class="badge" id="version">v—</span>
     </div>
     <div class="header-right">
       <span class="uptime"><span class="label">up</span><span id="uptime">--</span></span>
@@ -1281,6 +1281,9 @@ let cfgCache = null;
 
 function render(status) {
   lastStatus = status;
+
+  // Version (pulled from CARGO_PKG_VERSION at build time)
+  if (status.version) $('version').textContent = 'v' + status.version;
 
   // Uptime
   $('uptime').textContent = fmt.uptime(status.uptime_secs);

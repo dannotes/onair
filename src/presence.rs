@@ -10,6 +10,7 @@
 use crate::models::Presence;
 use once_cell::sync::Lazy;
 use regex::Regex;
+use std::collections::{HashMap, HashSet};
 use std::fs::{self, File};
 use std::io::{Read, Seek, SeekFrom};
 use std::path::{Path, PathBuf};
@@ -34,38 +35,48 @@ pub enum PresenceError {
     NoLogFiles(String),
 }
 
-/// A long-lived watcher that tails the latest `MSTeams_*.log` file in a directory.
+/// A long-lived watcher that tails every `MSTeams_*.log` file in a directory.
 ///
-/// Detects log rotation (Teams sometimes creates a new log mid-day) and re-opens.
-/// Reads only NEW lines since the last call; on the first call after construction
-/// it seeks to END of file (skipping stale data so we don't replay yesterday's
-/// status changes).
+/// Multi-profile Teams (multiple work/school/personal accounts on the same
+/// box) writes to several log files concurrently. Picking only the
+/// mtime-latest file flips non-deterministically between profiles as each
+/// writes chat heartbeats, dropping presence events on the floor. Instead
+/// this watcher keeps a per-file position map and tails them all.
+///
+/// Detects log rotation (Teams sometimes creates a new log mid-day) and
+/// new profile log files that appear mid-session. Reads only NEW bytes
+/// since the last call; on the first call after construction it seeds
+/// every existing log with its current size (seek-to-EOF semantics,
+/// per-file) so we don't replay yesterday's status changes.
 pub struct LogWatcher {
     log_dir: PathBuf,
-    current_file: Option<PathBuf>,
-    file_pos: u64,
+    file_positions: HashMap<PathBuf, u64>,
     initialized: bool,
 }
 
 impl LogWatcher {
     /// Create a new watcher for the given log directory. Does not open any
-    /// file — the first [`poll`](Self::poll) call locates the latest log and
-    /// seeks to its end.
+    /// files — the first [`poll`](Self::poll) call enumerates every
+    /// `MSTeams_*.log` and seeds each at EOF.
     pub fn new(log_dir: PathBuf) -> Self {
         Self {
             log_dir,
-            current_file: None,
-            file_pos: 0,
+            file_positions: HashMap::new(),
             initialized: false,
         }
     }
 
-    /// Reads any new presence events since the last call.
+    /// Reads any new presence events since the last call, across all
+    /// `MSTeams_*.log` files in the directory.
     ///
     /// - Empty Vec means no changes.
-    /// - Handles log rotation transparently.
+    /// - Handles log rotation and new-profile log files transparently.
     /// - Skips events that resolve to [`Presence::Unknown`] (too noisy).
-    /// - Returns events in chronological (file) order.
+    /// - Events within a single file are chronological. Events across files
+    ///   in the same poll cycle come out in sorted-path order; since the
+    ///   monitor loop applies them sequentially and the last-applied event
+    ///   wins, cross-file ordering only matters if two profiles transition
+    ///   within the same 3-second poll window, which is vanishingly rare.
     pub async fn poll(&mut self) -> Result<Vec<PresenceEvent>, PresenceError> {
         if !self.log_dir.exists() {
             return Err(PresenceError::LogDirNotFound(
@@ -73,93 +84,125 @@ impl LogWatcher {
             ));
         }
 
-        // Find the freshest MSTeams_*.log file.
-        let latest = match find_latest_log(&self.log_dir) {
-            Some(p) => p,
-            None => {
-                return Err(PresenceError::NoLogFiles(
-                    self.log_dir.display().to_string(),
-                ));
-            }
-        };
+        let mut logs = list_log_files(&self.log_dir);
+        if logs.is_empty() {
+            return Err(PresenceError::NoLogFiles(
+                self.log_dir.display().to_string(),
+            ));
+        }
+        // Deterministic iteration order for any cross-file events.
+        logs.sort();
 
-        // First call ever: seek to end of latest file, skip any backlog.
+        // First call ever: seed every log file with its current size so we
+        // skip all existing backlog. Same strategy as the original
+        // single-file design, just per-file.
         if !self.initialized {
-            let size = fs::metadata(&latest)?.len();
+            for path in &logs {
+                let size = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+                self.file_positions.insert(path.clone(), size);
+            }
             info!(
-                "LogWatcher initialized on {} (size={} bytes, seeking to end)",
-                latest.display(),
-                size
+                "LogWatcher initialized: tailing {} Teams log file(s) in {} (each seeked to end, skipping backlog)",
+                logs.len(),
+                self.log_dir.display()
             );
-            self.current_file = Some(latest);
-            self.file_pos = size;
             self.initialized = true;
             return Ok(Vec::new());
         }
 
-        // Detect rotation: a different file is now the freshest.
-        let rotated = match &self.current_file {
-            Some(cur) => cur != &latest,
-            None => true,
-        };
-        if rotated {
-            info!(
-                "Detected Teams log rotation: {:?} -> {}",
-                self.current_file.as_ref().map(|p| p.display().to_string()),
-                latest.display()
-            );
-            self.current_file = Some(latest.clone());
-            self.file_pos = 0;
-        }
-
-        let path = self.current_file.as_ref().unwrap().clone();
-
-        // Open and seek.
-        let mut file = match File::open(&path) {
-            Ok(f) => f,
-            Err(e) => {
-                warn!("could not open {}: {}", path.display(), e);
-                return Err(PresenceError::Io(e));
-            }
-        };
-        let size = file.metadata()?.len();
-
-        // If the file shrank (truncated/replaced under us), restart from 0.
-        if size < self.file_pos {
-            warn!(
-                "Teams log {} shrank from {} to {} bytes; rewinding",
-                path.display(),
-                self.file_pos,
-                size
-            );
-            self.file_pos = 0;
-        }
-
-        if size == self.file_pos {
-            return Ok(Vec::new());
-        }
-
-        file.seek(SeekFrom::Start(self.file_pos))?;
-        let to_read = (size - self.file_pos) as usize;
-        let mut buf = Vec::with_capacity(to_read);
-        // We intentionally do NOT use read_to_string — macOS Teams logs contain
-        // interspersed binary bytes that would fail UTF-8 validation.
-        let read = file.take(to_read as u64).read_to_end(&mut buf)?;
-        self.file_pos += read as u64;
-
-        let text = String::from_utf8_lossy(&buf);
-
         let mut events = Vec::new();
-        for line in text.lines() {
-            if let Some(ev) = parse_line(line) {
-                if ev.presence == Presence::Unknown {
-                    debug!("skipping Unknown presence event (raw={})", ev.raw);
+        let present: HashSet<PathBuf> = logs.iter().cloned().collect();
+
+        for path in &logs {
+            // New file we haven't seen before — either a rotation or a new
+            // Teams profile that just came online. Seed at EOF, same as
+            // startup: we don't replay backlog.
+            let last_pos = match self.file_positions.get(path).copied() {
+                Some(p) => p,
+                None => {
+                    let size = fs::metadata(path).map(|m| m.len()).unwrap_or(0);
+                    info!(
+                        "new Teams log file appeared: {} (size={} bytes, seeking to end)",
+                        path.display(),
+                        size
+                    );
+                    self.file_positions.insert(path.clone(), size);
                     continue;
                 }
-                debug!("presence event: {:?} (raw={})", ev.presence, ev.raw);
-                events.push(ev);
+            };
+
+            let mut file = match File::open(path) {
+                Ok(f) => f,
+                Err(e) => {
+                    warn!("could not open {}: {}", path.display(), e);
+                    continue;
+                }
+            };
+            let size = match file.metadata() {
+                Ok(m) => m.len(),
+                Err(e) => {
+                    warn!("could not stat {}: {}", path.display(), e);
+                    continue;
+                }
+            };
+
+            // Truncation guard: if the file shrank, rewind to 0 and keep going.
+            let pos = if size < last_pos {
+                warn!(
+                    "Teams log {} shrank from {} to {} bytes; rewinding",
+                    path.display(),
+                    last_pos,
+                    size
+                );
+                0
+            } else {
+                last_pos
+            };
+
+            if size == pos {
+                continue;
+            }
+
+            if let Err(e) = file.seek(SeekFrom::Start(pos)) {
+                warn!("seek failed on {}: {}", path.display(), e);
+                continue;
+            }
+            let to_read = (size - pos) as usize;
+            let mut buf = Vec::with_capacity(to_read);
+            // We intentionally do NOT use read_to_string — Teams logs can
+            // contain interspersed binary bytes that would fail UTF-8
+            // validation. Lossy decode is good enough for line-oriented
+            // regex matching.
+            let read = match file.take(to_read as u64).read_to_end(&mut buf) {
+                Ok(n) => n,
+                Err(e) => {
+                    warn!("read failed on {}: {}", path.display(), e);
+                    continue;
+                }
+            };
+            self.file_positions.insert(path.clone(), pos + read as u64);
+
+            let text = String::from_utf8_lossy(&buf);
+            for line in text.lines() {
+                if let Some(ev) = parse_line(line) {
+                    if ev.presence == Presence::Unknown {
+                        debug!("skipping Unknown presence event (raw={})", ev.raw);
+                        continue;
+                    }
+                    debug!(
+                        "presence event from {}: {:?} (raw={})",
+                        path.display(),
+                        ev.presence,
+                        ev.raw
+                    );
+                    events.push(ev);
+                }
             }
         }
+
+        // Drop positions for files Teams cleaned up so the map doesn't
+        // grow forever.
+        self.file_positions.retain(|p, _| present.contains(p));
 
         Ok(events)
     }
@@ -256,17 +299,6 @@ fn list_log_files(dir: &Path) -> Vec<PathBuf> {
             Vec::new()
         }
     }
-}
-
-fn find_latest_log(dir: &Path) -> Option<PathBuf> {
-    list_log_files(dir)
-        .into_iter()
-        .filter_map(|p| {
-            let mtime = fs::metadata(&p).and_then(|m| m.modified()).ok()?;
-            Some((p, mtime))
-        })
-        .max_by_key(|(_, mtime)| *mtime)
-        .map(|(p, _)| p)
 }
 
 // ---------------------------------------------------------------------------

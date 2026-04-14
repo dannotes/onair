@@ -125,6 +125,7 @@ struct BulbLiveDto {
 
 #[derive(Serialize)]
 struct StatusDto {
+    version: &'static str,
     status: String,
     display: DisplayState,
     bulb_mac: String,
@@ -199,6 +200,7 @@ async fn status(State(state): State<Arc<AppState>>) -> Json<StatusDto> {
     .to_string();
 
     Json(StatusDto {
+        version: env!("CARGO_PKG_VERSION"),
         status: status_str,
         display,
         bulb_mac,

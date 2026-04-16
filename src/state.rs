@@ -337,9 +337,10 @@ impl AppState {
                 }
             }
             TriggerMode::BusyAndDnd => presence.is_in_call(),
-            TriggerMode::AnyNonAvailable => {
-                !matches!(presence, Presence::Available | Presence::Offline | Presence::Unknown)
-            }
+            TriggerMode::AnyNonAvailable => !matches!(
+                presence,
+                Presence::Available | Presence::Offline | Presence::Unknown
+            ),
         }
     }
 
@@ -358,7 +359,10 @@ impl AppState {
             TriggerMode::BusyAndDnd => self.current_presence.read().is_in_call(),
             TriggerMode::AnyNonAvailable => {
                 let p = *self.current_presence.read();
-                !matches!(p, Presence::Available | Presence::Offline | Presence::Unknown)
+                !matches!(
+                    p,
+                    Presence::Available | Presence::Offline | Presence::Unknown
+                )
             }
         }
     }

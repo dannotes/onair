@@ -343,7 +343,11 @@ fn parse_line_mac(line: &str) -> Option<PresenceEvent> {
     let caps = MAC_RE.captures(line)?;
     let raw = caps.get(1)?.as_str().to_string();
     let presence = mac_raw_to_presence(&raw);
-    Some(PresenceEvent { presence, raw, is_call_event: false })
+    Some(PresenceEvent {
+        presence,
+        raw,
+        is_call_event: false,
+    })
 }
 
 #[cfg(target_os = "macos")]
@@ -429,7 +433,11 @@ fn parse_line_windows(line: &str) -> Option<PresenceEvent> {
     let caps = WIN_RE.captures(line)?;
     let raw = caps.get(1)?.as_str().to_string();
     let presence = win_raw_to_presence(&raw);
-    Some(PresenceEvent { presence, raw, is_call_event: false })
+    Some(PresenceEvent {
+        presence,
+        raw,
+        is_call_event: false,
+    })
 }
 
 #[cfg(any(

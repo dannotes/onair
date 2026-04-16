@@ -15,7 +15,7 @@
 
 use crate::bulb::{self, BulbState, DiscoveredBulb};
 use crate::config::Db;
-use crate::models::{Presence, Rgb};
+use crate::models::{Presence, Rgb, TriggerMode};
 use crate::platform;
 use crate::presence::LogWatcher;
 use chrono::{DateTime, Local, NaiveDate, Timelike};
@@ -72,6 +72,8 @@ pub struct Config {
     pub idle_brightness: u8,
     pub ui_port: u16,
     pub log_level: String,
+    /// What presence state(s) should activate the bulb.
+    pub trigger_mode: TriggerMode,
     /// Set to `true` after the first successful bulb resolve. Used to drive
     /// the opt-out "auto-enable autostart on first run" behavior in `main.rs`.
     pub first_run_completed: bool,
@@ -105,6 +107,7 @@ impl Config {
             idle_brightness: 50,
             ui_port: 9876,
             log_level: "info".to_string(),
+            trigger_mode: TriggerMode::BusyAndDnd,
             first_run_completed: false,
         }
     }
@@ -139,6 +142,7 @@ pub enum DisplayState {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "UPPERCASE")]
 pub enum EventLevel {
+    Dbg,
     Inf,
     Ok,
     Wrn,
@@ -209,6 +213,11 @@ pub struct AppState {
     events: RwLock<VecDeque<Event>>,
     next_event_id: RwLock<u64>,
 
+    /// True while TeamsCallTracker reports an active call (Windows only).
+    /// Used by `TriggerMode::CallOnly` to distinguish real calls from manual
+    /// Busy status changes. Always `false` on macOS (no TeamsCallTracker).
+    pub call_tracker_active: RwLock<bool>,
+
     /// Most recent discovery scan result.
     pub last_discovery: RwLock<Vec<DiscoveredBulb>>,
 
@@ -237,6 +246,7 @@ impl AppState {
             stats: RwLock::new(DayStats::default()),
             events: RwLock::new(VecDeque::with_capacity(EVENT_BUFFER_CAP)),
             next_event_id: RwLock::new(1),
+            call_tracker_active: RwLock::new(false),
             last_discovery: RwLock::new(Vec::new()),
             db: RwLock::new(None),
             current_call_id: RwLock::new(None),
@@ -263,6 +273,7 @@ impl AppState {
             EventLevel::Ok => info!("[ok] {}", message),
             EventLevel::Wrn => warn!("{}", message),
             EventLevel::Err => tracing::error!("{}", message),
+            EventLevel::Dbg => debug!("{}", message),
         }
 
         let mut id_guard = self.next_event_id.write();
@@ -282,6 +293,74 @@ impl AppState {
             events.pop_front();
         }
         events.push_back(event);
+    }
+
+    /// Push a debug-level event to the ring buffer — only when `log_level`
+    /// is `"debug"`. Always emits via `tracing::debug` regardless.
+    pub fn log_debug(&self, message: impl Into<String>) {
+        let message = message.into();
+        debug!("{}", message);
+        if self.config.read().log_level != "debug" {
+            return;
+        }
+        let mut id_guard = self.next_event_id.write();
+        let id = *id_guard;
+        *id_guard += 1;
+        drop(id_guard);
+        let event = Event {
+            id,
+            ts: Local::now(),
+            level: EventLevel::Dbg,
+            message,
+        };
+        let mut events = self.events.write();
+        if events.len() >= EVENT_BUFFER_CAP {
+            events.pop_front();
+        }
+        events.push_back(event);
+    }
+
+    /// True if the given incoming presence event should turn the light on,
+    /// given the configured trigger mode. `is_call_event` is `true` only for
+    /// TeamsCallTracker events on Windows.
+    pub fn event_triggers(&self, presence: Presence, is_call_event: bool) -> bool {
+        let mode = self.config.read().trigger_mode;
+        match mode {
+            TriggerMode::CallOnly => {
+                if cfg!(target_os = "macos") {
+                    // No call-tracker on Mac; Busy is the best proxy.
+                    presence.is_in_call()
+                } else {
+                    // Windows: only a TeamsCallTracker call-active event counts.
+                    // GlyphBadge Busy (manual status change) is intentionally ignored.
+                    is_call_event && presence != Presence::Available
+                }
+            }
+            TriggerMode::BusyAndDnd => presence.is_in_call(),
+            TriggerMode::AnyNonAvailable => {
+                !matches!(presence, Presence::Available | Presence::Offline | Presence::Unknown)
+            }
+        }
+    }
+
+    /// True if the *current* state (presence + call_tracker_active) should
+    /// have the light on. Used for grace-timer checks and reconcile_display.
+    pub fn currently_triggered(&self) -> bool {
+        let mode = self.config.read().trigger_mode;
+        match mode {
+            TriggerMode::CallOnly => {
+                if cfg!(target_os = "macos") {
+                    self.current_presence.read().is_in_call()
+                } else {
+                    *self.call_tracker_active.read()
+                }
+            }
+            TriggerMode::BusyAndDnd => self.current_presence.read().is_in_call(),
+            TriggerMode::AnyNonAvailable => {
+                let p = *self.current_presence.read();
+                !matches!(p, Presence::Available | Presence::Offline | Presence::Unknown)
+            }
+        }
     }
 
     /// Fetch the most recent `limit` events (newest last). `offset` skips
@@ -546,9 +625,8 @@ pub async fn reconcile_display(state: &Arc<AppState>) {
         OverrideMode::Auto => {}
     }
 
-    let presence = *state.current_presence.read();
     let call_start_some = state.call_start.read().is_some();
-    let in_call = presence.is_in_call();
+    let in_call = state.currently_triggered();
 
     if in_call && state.within_work_hours() {
         apply_call(state).await;
@@ -623,23 +701,63 @@ pub async fn monitor_loop(state: Arc<AppState>) {
             }
         };
 
+        if events.is_empty() {
+            state.log_debug(format!(
+                "presence poll: no new events (presence={:?} call_tracker_active={} triggered={})",
+                *state.current_presence.read(),
+                *state.call_tracker_active.read(),
+                state.currently_triggered(),
+            ));
+        } else {
+            state.log_debug(format!("presence poll: {} new event(s)", events.len()));
+        }
+
         // 2. Process each new event in order.
         for ev in events {
             let prev = *state.current_presence.read();
+
+            // Update call_tracker_active for Windows CallOnly mode.
+            if ev.is_call_event {
+                let active = ev.presence != Presence::Available;
+                *state.call_tracker_active.write() = active;
+                state.log_debug(format!(
+                    "TeamsCallTracker: call_tracker_active → {} (raw={})",
+                    active, ev.raw,
+                ));
+            }
+
             *state.current_presence.write() = ev.presence;
-            if prev == ev.presence {
+
+            // Skip if presence didn't change AND this isn't a call-tracker event.
+            // Call-tracker events must be processed even when presence stays Busy
+            // (e.g. manual Busy was already set before the call started).
+            if prev == ev.presence && !ev.is_call_event {
+                state.log_debug(format!(
+                    "presence unchanged ({:?}), no call-tracker event, skipping",
+                    ev.presence,
+                ));
                 continue;
             }
 
-            let now_in_call = ev.presence.is_in_call();
-            let was_in_call = prev.is_in_call();
+            let now_triggered = state.event_triggers(ev.presence, ev.is_call_event);
+            let call_was_active = state.call_start.read().is_some();
 
-            state.log_event(
-                EventLevel::Inf,
-                format!("Teams presence: {:?} -> {:?}", prev, ev.presence),
-            );
+            if ev.presence != prev {
+                state.log_event(
+                    EventLevel::Inf,
+                    format!("Teams presence: {:?} -> {:?}", prev, ev.presence),
+                );
+            }
+            state.log_debug(format!(
+                "trigger check: mode={:?} now_triggered={} call_was_active={} (raw={} is_call_event={})",
+                state.config.read().trigger_mode,
+                now_triggered,
+                call_was_active,
+                ev.raw,
+                ev.is_call_event,
+            ));
 
-            if now_in_call && !was_in_call {
+            if now_triggered && !call_was_active {
                 // available -> busy
                 if !state.within_work_hours() {
                     state.log_event(
@@ -667,8 +785,8 @@ pub async fn monitor_loop(state: Arc<AppState>) {
                     }
                 }
                 apply_call(&state).await;
-            } else if !now_in_call && was_in_call {
-                // busy -> available — start grace timer.
+            } else if !now_triggered && call_was_active {
+                // triggered -> not triggered — start grace timer.
                 let grace = Duration::from_secs(state.config.read().grace_period_secs);
                 *state.grace_until.write() = Some(Instant::now() + grace);
                 state.log_event(
@@ -684,8 +802,14 @@ pub async fn monitor_loop(state: Arc<AppState>) {
             g.map(|t| Instant::now() >= t).unwrap_or(false)
         };
         if grace_expired {
-            let still_idle = !state.current_presence.read().is_in_call();
-            if still_idle {
+            let still_triggered = state.currently_triggered();
+            state.log_debug(format!(
+                "grace expired — still_triggered={} (presence={:?} call_tracker_active={})",
+                still_triggered,
+                *state.current_presence.read(),
+                *state.call_tracker_active.read(),
+            ));
+            if !still_triggered {
                 let call_start_opt: Option<DateTime<Local>> = *state.call_start.read();
                 if let Some(start) = call_start_opt {
                     let ended = Local::now();
@@ -709,7 +833,7 @@ pub async fn monitor_loop(state: Arc<AppState>) {
                 *state.grace_until.write() = None;
                 apply_idle(&state).await;
             } else {
-                // Presence flipped back to busy mid-grace — cancel.
+                // State flipped back to triggered mid-grace — cancel.
                 *state.grace_until.write() = None;
                 state.log_event(EventLevel::Wrn, "grace cancelled — back-to-back call");
             }

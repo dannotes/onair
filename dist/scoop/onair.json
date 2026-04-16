@@ -11,6 +11,18 @@
     }
   },
   "bin": "onair.exe",
+  "pre_install": [
+    "Get-Process onair -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue",
+    "Start-Sleep -Milliseconds 500"
+  ],
+  "pre_uninstall": [
+    "Get-Process onair -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue",
+    "Start-Sleep -Milliseconds 500"
+  ],
+  "post_install": [
+    "$startup = [Environment]::GetFolderPath('Startup')",
+    "if (Test-Path (Join-Path $startup 'onair.lnk')) { Start-Process -FilePath (Join-Path $dir 'onair.exe') -WindowStyle Hidden }"
+  ],
   "notes": [
     "onair runs as a foreground daemon and serves a dashboard at http://localhost:9876",
     "To run it on login, drop a shortcut into the Startup folder. See README for details.",

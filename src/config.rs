@@ -7,7 +7,7 @@
 //! All operations are synchronous (rusqlite). They're fast enough at the
 //! scale of a single-user dashboard that we don't bother with `spawn_blocking`.
 
-use crate::models::Rgb;
+use crate::models::{Rgb, TriggerMode};
 use crate::state::{BulbMode, Config};
 use anyhow::{Context, Result};
 use chrono::{DateTime, Local};
@@ -216,6 +216,7 @@ fn config_to_pairs(cfg: &Config) -> Vec<(&'static str, String)> {
         ("idle_brightness", cfg.idle_brightness.to_string()),
         ("ui_port", cfg.ui_port.to_string()),
         ("log_level", cfg.log_level.clone()),
+        ("trigger_mode", trigger_mode_to_str(cfg.trigger_mode).to_string()),
         (
             "first_run_completed",
             if cfg.first_run_completed { "1" } else { "0" }.to_string(),
@@ -297,6 +298,7 @@ fn apply_key(cfg: &mut Config, key: &str, value: &str) {
             }
         }
         "log_level" => cfg.log_level = value.to_string(),
+        "trigger_mode" => cfg.trigger_mode = trigger_mode_from_str(value).unwrap_or(cfg.trigger_mode),
         "first_run_completed" => cfg.first_run_completed = matches!(value, "1" | "true"),
         _ => {} // unknown key — ignore gracefully so old DBs stay forward-compatible
     }
@@ -313,6 +315,23 @@ fn mode_from_str(s: &str) -> Option<BulbMode> {
     match s {
         "on" => Some(BulbMode::On),
         "off" => Some(BulbMode::Off),
+        _ => None,
+    }
+}
+
+fn trigger_mode_to_str(m: TriggerMode) -> &'static str {
+    match m {
+        TriggerMode::CallOnly => "call_only",
+        TriggerMode::BusyAndDnd => "busy_and_dnd",
+        TriggerMode::AnyNonAvailable => "any_non_available",
+    }
+}
+
+fn trigger_mode_from_str(s: &str) -> Option<TriggerMode> {
+    match s {
+        "call_only" => Some(TriggerMode::CallOnly),
+        "busy_and_dnd" => Some(TriggerMode::BusyAndDnd),
+        "any_non_available" => Some(TriggerMode::AnyNonAvailable),
         _ => None,
     }
 }

@@ -20,6 +20,22 @@ impl Presence {
     }
 }
 
+/// What presence state(s) should activate the bulb.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum TriggerMode {
+    /// Only fire on explicit TeamsCallTracker call events (Windows).
+    /// On macOS there is no call-tracker signal, so this behaves the same as
+    /// `BusyAndDnd` (Busy is the only call indicator available in the log).
+    CallOnly,
+    /// Activate on Busy or DoNotDisturb — the default.
+    #[default]
+    BusyAndDnd,
+    /// Activate on anything except Available, Offline, or Unknown.
+    /// Catches Away, BeRightBack, Busy, and DoNotDisturb.
+    AnyNonAvailable,
+}
+
 /// RGB color (0-255 each).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Rgb {

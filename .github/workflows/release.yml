@@ -161,6 +161,19 @@ jobs:
               doc.install "README.md", "LICENSE"
             end
 
+            def post_install
+              # If the user enabled "Run on Login", the daemon is running under
+              # launchd with KeepAlive=true and has the old binary mmap'd. brew
+              # has just repointed the symlink at the new Cellar version, but the
+              # live process keeps serving stale code. Bounce it via launchctl
+              # kickstart -k: SIGTERM the old process, let KeepAlive respawn it
+              # from the plist, which now resolves to the new binary. Silent
+              # no-op when autostart isn't installed.
+              return unless OS.mac?
+              uid = Process.uid
+              quiet_system "/bin/launchctl", "kickstart", "-k", "gui/#{uid}/com.dannotes.onair"
+            end
+
             def caveats
               <<~CAVEAT
                 Run onair to launch the dashboard:
@@ -237,6 +250,18 @@ jobs:
               }
             },
             "bin": "onair.exe",
+            "pre_install": [
+              "Get-Process onair -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue",
+              "Start-Sleep -Milliseconds 500"
+            ],
+            "pre_uninstall": [
+              "Get-Process onair -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue",
+              "Start-Sleep -Milliseconds 500"
+            ],
+            "post_install": [
+              "\$startup = [Environment]::GetFolderPath('Startup')",
+              "if (Test-Path (Join-Path \$startup 'onair.lnk')) { Start-Process -FilePath (Join-Path \$dir 'onair.exe') -WindowStyle Hidden }"
+            ],
             "notes": [
               "Run 'onair' to launch the dashboard. It will open in your browser automatically the first time.",
               "Configure your bulb there, then toggle 'Run on Login' in Settings -> Advanced if you want it to start on every login."

@@ -19,7 +19,7 @@
 
 use crate::autostart;
 use crate::bulb::{self, BulbState, DiscoveredBulb};
-use crate::models::Rgb;
+use crate::models::{Rgb, TriggerMode};
 use crate::platform;
 use crate::presence::LogWatcher;
 use crate::state::{
@@ -283,6 +283,14 @@ async fn post_config(
             other => Err(format!("invalid bulb mode for {}: {}", k, other)),
         })
     };
+    let get_trigger_mode = |k: &str| -> Option<Result<TriggerMode, String>> {
+        obj.get(k).and_then(|v| v.as_str()).map(|s| match s {
+            "call_only" => Ok(TriggerMode::CallOnly),
+            "busy_and_dnd" => Ok(TriggerMode::BusyAndDnd),
+            "any_non_available" => Ok(TriggerMode::AnyNonAvailable),
+            other => Err(format!("invalid trigger mode: {}", other)),
+        })
+    };
 
     // Validate colors / modes up-front so we don't half-apply on failure.
     let call_color_parsed = match get_color("call_color") {
@@ -301,6 +309,11 @@ async fn post_config(
         None => None,
     };
     let idle_state_parsed = match get_bulb_mode("idle_state") {
+        Some(Ok(m)) => Some(m),
+        Some(Err(e)) => return err_json(StatusCode::BAD_REQUEST, e),
+        None => None,
+    };
+    let trigger_mode_parsed = match get_trigger_mode("trigger_mode") {
         Some(Ok(m)) => Some(m),
         Some(Err(e)) => return err_json(StatusCode::BAD_REQUEST, e),
         None => None,
@@ -349,6 +362,9 @@ async fn post_config(
         }
         if let Some(v) = get_str("log_level") {
             cfg.log_level = v;
+        }
+        if let Some(m) = trigger_mode_parsed {
+            cfg.trigger_mode = m;
         }
         if let Some(v) = get_str("bulb_mac") {
             cfg.bulb_mac = v;

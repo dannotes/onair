@@ -41,6 +41,18 @@ class Onair < Formula
     doc.install "README.md", "LICENSE"
   end
 
+  def post_install
+    # If the user enabled "Run on Login", the daemon is running under launchd
+    # with KeepAlive=true and has the old binary mmap'd. brew has just repointed
+    # the symlink at the new Cellar version, but the live process keeps serving
+    # stale code. Bounce it via launchctl kickstart -k: SIGTERM the old process,
+    # let KeepAlive respawn it from the plist, which now resolves to the new
+    # binary. Silent no-op when autostart isn't installed.
+    return unless OS.mac?
+    uid = Process.uid
+    quiet_system "/bin/launchctl", "kickstart", "-k", "gui/#{uid}/com.dannotes.onair"
+  end
+
   def caveats
     <<~EOS
       Onair runs as a foreground daemon and serves a dashboard at:

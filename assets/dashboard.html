@@ -490,6 +490,8 @@
   .log-entry .lvl.ok  { color: var(--green); }
   .log-entry .lvl.wrn { color: var(--amber); }
   .log-entry .lvl.err { color: var(--red); }
+  .log-entry .lvl.dbg { color: var(--text-4); }
+  .log-entry.dbg .msg { color: var(--text-4); }
   .log-entry .msg { color: var(--text-2); word-break: break-word; min-width: 0; }
   .log-entry .msg .hl-r { color: var(--red); font-weight: 500; }
   .log-entry .msg .hl-g { color: var(--green); font-weight: 500; }
@@ -1096,6 +1098,16 @@
           </div>
 
         </div>
+
+        <div class="field" style="margin-top:0.85rem;">
+          <label>Trigger Mode</label>
+          <select id="cfg-trigger-mode">
+            <option value="call_only">On call only (Busy status during active calls)</option>
+            <option value="busy_and_dnd">Busy &amp; Do Not Disturb (default)</option>
+            <option value="any_non_available">Any non-available (Away, Busy, DND, BeRightBack)</option>
+          </select>
+          <span class="hint" style="margin-top:0.3rem;display:block;">Windows: "on call only" ignores manual Busy — triggers only on real TeamsCallTracker call events.</span>
+        </div>
       </div>
 
       <!-- BULB SELECTION -->
@@ -1432,7 +1444,7 @@ function renderLogs(events) {
     if (ev.id <= lastLogId) continue;
     lastLogId = ev.id;
     const line = document.createElement('div');
-    line.className = 'log-entry';
+    line.className = 'log-entry ' + ev.level.toLowerCase();
     const ts = new Date(ev.ts);
     const t = `${String(ts.getHours()).padStart(2,'0')}:${String(ts.getMinutes()).padStart(2,'0')}:${String(ts.getSeconds()).padStart(2,'0')}`;
     line.innerHTML =
@@ -1457,7 +1469,8 @@ function renderConfig(cfg) {
   $('cfg-maxcall').value    = cfg.max_call_hours;
   $('cfg-offline').value    = cfg.teams_offline_mins;
   $('cfg-port').value       = cfg.ui_port;
-  $('cfg-loglevel').value   = cfg.log_level;
+  $('cfg-loglevel').value       = cfg.log_level;
+  $('cfg-trigger-mode').value   = cfg.trigger_mode || 'busy_and_dnd';
   $('cfg-teams-path').value = cfg.teams_log_dir || '';
 
   $('work-window').textContent =
@@ -1650,6 +1663,7 @@ function wireUp() {
       idle_brightness: parseInt($('idle-bright').value, 10),
       ui_port: parseInt($('cfg-port').value, 10),
       log_level: $('cfg-loglevel').value,
+      trigger_mode: $('cfg-trigger-mode').value,
       teams_log_dir: $('cfg-teams-path').value.trim() || null,
     };
     try {
